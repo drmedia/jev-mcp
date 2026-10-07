@@ -29,6 +29,7 @@ Paths below use `/absolute/path/to/jev-mcp`; on Windows use a path such as
 | ChatGPT | stdio via Secure MCP Tunnel | Verified end to end (2026-10-07, tunnel-client 0.0.16) |
 | Claude Code | Streamable HTTP (local) | Verified end to end (2026-10-07, Claude Code 2.1.289) |
 | Codex CLI | Streamable HTTP (local) | Verified end to end (2026-10-07, codex-cli 0.160.0) |
+| VS Code Copilot agent mode | Streamable HTTP (local) | Verified end to end (2026-10-07, VS Code 1.139.1); user `mcp.json` with a password input |
 
 Both verified clients rewrite the tool names: `jev.evaluate` appears as
 `mcp__jev__jev_evaluate` and `jev.models` as `mcp__jev__jev_models`. Both accepted
@@ -129,6 +130,35 @@ codex mcp add jev-http --url http://127.0.0.1:8098/mcp --bearer-token-env-var JE
 ```
 
 Set `JEV_HTTP_TOKEN` in the environment Codex runs in.
+
+VS Code Copilot: run `MCP: Open User Configuration` and add the server with a
+password input, so the token is not written to the file:
+
+```json
+{
+  "inputs": [
+    { "type": "promptString", "id": "jev-http-token", "description": "JEV_HTTP_TOKEN", "password": true }
+  ],
+  "servers": {
+    "jev-http": {
+      "type": "http",
+      "url": "http://127.0.0.1:8098/mcp",
+      "headers": { "Authorization": "Bearer ${input:jev-http-token}" }
+    }
+  }
+}
+```
+
+Start it from `MCP: List Servers`; VS Code asks for the token once and stores it.
+Paste only the token value, without `JEV_HTTP_TOKEN=` or quotes; a wrong value gets
+401, after which VS Code also probes for OAuth metadata that this server does not
+offer.
+
+VS Code logs `Tool "jev.noul" is invalid. Tools names may only contain [a-z0-9_-]`
+for every tool. This is only a warning: VS Code replaces the dot and exposes the tool
+as `jev_noul` (for example `mcp_jev-mcp_jev_score`), while calls still use the
+original name. Reference tools in chat as `#jev_noul`, not `#jev.noul`. The MCP
+specification allows dots in tool names.
 
 Other clients need a Streamable HTTP URL and a way to send the
 `Authorization: Bearer` header. Clients that only support OAuth cannot connect yet.

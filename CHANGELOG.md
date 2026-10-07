@@ -21,7 +21,8 @@ Phase 10 defined in AGENTS.md.
   loopback values for the server's port (DNS rebinding protection); bodies are
   limited to 32 MiB.
 - `JEV_HTTP_TOKEN` and `PORT` (default 8098), read only by the HTTP entry point.
-- Verified end to end with Claude Code 2.1.289 and codex-cli 0.160.0 over HTTP.
+- Verified end to end over HTTP with Claude Code 2.1.289, codex-cli 0.160.0 and
+  VS Code Copilot agent mode (VS Code 1.139.1).
 
 ### Changed
 
