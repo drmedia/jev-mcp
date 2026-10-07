@@ -60,6 +60,8 @@ TypeSafe Provider
 TypeSafe Jev API
 ```
 
+The provider layer now has three implementations behind the same interface: `TypeSafeProvider` (TypeSafe Jev API), `OpenRouterProvider` (OpenRouter's System One API, Phase 6) and `LocalProvider` (a System One-compatible server on the user's machine, Phase 8). `RetryingJevProvider` wraps the selected provider and adds bounded retries. `JEV_PROVIDER` selects the provider.
+
 The following layers must remain separated:
 
 - MCP transport
@@ -113,14 +115,14 @@ These tools should reuse the same JEV Core implementation rather than duplicate 
 
 Later phases may include:
 
-- batch evaluation
-- provider abstraction
-- local JEV-compatible providers
-- OpenRouter integration
-- retries and backoff
-- concurrency control
+- batch evaluation (implemented: Phase 9, `jev.evaluate_batch`)
+- provider abstraction (implemented: `JevProvider`)
+- local JEV-compatible providers (implemented: Phase 8, `LocalProvider`)
+- OpenRouter integration (implemented: Phase 6, `OpenRouterProvider`)
+- retries and backoff (implemented: `RetryingJevProvider`)
+- concurrency control (implemented for batches: Phase 9, `JEV_MAX_CONCURRENCY`)
 - telemetry
-- usage and cost metadata
+- usage and cost metadata (implemented: token usage, and cost when the provider reports it)
 - authentication
 - Streamable HTTP transport
 - Docker deployment
@@ -219,6 +221,8 @@ In particular, never assume undocumented structures for:
 
 If the external API behavior and documentation disagree, document the discrepancy and add a contract test where practical.
 
+The same rules apply to every provider: OpenRouter's System One and model APIs, and the documented API of local servers such as llama.cpp `llama-server`. Discrepancies are recorded in `docs/typesafe-api-notes.md`, `docs/openrouter-notes.md` and `docs/local-provider.md`.
+
 ---
 
 ## 8. Provider Architecture
@@ -240,14 +244,19 @@ The first implementation is:
 TypeSafeProvider
 ```
 
-Future providers may include:
+Implemented providers:
 
 ```text
-OpenRouterProvider
-LocalProvider
-MockProvider
-JevCompatibleProvider
+TypeSafeProvider
+OpenRouterProvider   (Phase 6)
+LocalProvider        (Phase 8, any System One-compatible server)
 ```
+
+`RetryingJevProvider` is a decorator around any provider, not a provider of its own.
+
+`MockJevProvider` in `tests/support/mock-provider.ts` implements the interface for tests only.
+
+Future providers may include other JEV-compatible APIs. Add them behind the same interface.
 
 Core code must not depend directly on `TypeSafeProvider`.
 
@@ -363,8 +372,14 @@ The following must come from environment variables:
 ```text
 TYPESAFE_API_KEY
 TYPESAFE_BASE_URL
+OPENROUTER_API_KEY
+OPENROUTER_BASE_URL
+JEV_LOCAL_BASE_URL
+JEV_LOCAL_API_KEY
 JEV_MODEL
 ```
+
+`TYPESAFE_API_KEY`, `OPENROUTER_API_KEY` and `JEV_LOCAL_API_KEY` are secrets. A provider never falls back to another provider's key.
 
 Never log:
 
@@ -457,14 +472,16 @@ Avoid automatic retry for:
 
 Retry behavior must be bounded.
 
-Future implementation should support:
+Implemented in `RetryingJevProvider`:
 
-- maximum retry count
-- exponential backoff
-- timeout/deadline
-- cancellation
+- retried: `rate_limited` (429), `overloaded`, `timeout`, `network`, and `provider_error` with HTTP 500, 502, 503 or 504
+- never retried: every other error kind, including `refused`
+- maximum retry count: `JEV_MAX_RETRIES` (default 2, 0 to 10)
+- exponential backoff with full jitter, at most 8 seconds per wait; a provider `retry-after` is honored up to the same limit
+- per-request timeout: 30 seconds (fixed; `JEV_TIMEOUT_MS` is a possible future setting)
+- cancellation: a cancelled MCP request stops retries and waits
 
-Do not implement retries until requested in the relevant phase.
+Change the retry policy only when a task explicitly requests it.
 
 ---
 
@@ -472,24 +489,32 @@ Do not implement retries until requested in the relevant phase.
 
 Configuration must be centralized.
 
-Recommended environment variables:
+Implemented environment variables (defaults and ranges are in `README.md` and `.env.example`):
 
 ```text
+JEV_PROVIDER
 TYPESAFE_API_KEY
 TYPESAFE_BASE_URL
+OPENROUTER_API_KEY
+OPENROUTER_BASE_URL
+JEV_LOCAL_BASE_URL
+JEV_LOCAL_API_KEY
 JEV_MODEL
+JEV_MAX_RETRIES
+JEV_MAX_CONCURRENCY
+JEV_IMAGE_DIRS
+JEV_MAX_INPUT_CHARS
 ```
 
 Future configuration may include:
 
 ```text
-JEV_PROVIDER
 JEV_TIMEOUT_MS
-JEV_MAX_RETRIES
-JEV_MAX_CONCURRENCY
 JEV_LOG_LEVEL
 PORT
 ```
+
+Every new variable must be added to `src/config/config.ts`, `.env.example` (empty value) and the README configuration table.
 
 Do not scatter direct `process.env` reads throughout the codebase.
 
@@ -526,17 +551,17 @@ Use mocked HTTP responses for normal unit tests.
 
 Do not require a real TypeSafe API key for the standard test suite.
 
-### Contract tests
+### Contract and e2e tests
 
-Later, optionally run against the real TypeSafe API when:
+Contract tests (`npm run test:contract`, `tests/contract/`) call the real APIs, and e2e tests (`npm run test:e2e`, `tests/e2e/`) run the built stdio server. Each test runs only when what it needs is available and skips otherwise:
 
 ```text
-TYPESAFE_API_KEY
+TYPESAFE_API_KEY      TypeSafe tests
+OPENROUTER_API_KEY    OpenRouter tests
+local server /health  local provider tests
 ```
 
-is explicitly available.
-
-Real API tests must be separable from normal CI tests.
+Real API tests must be separable from normal CI tests. `npm test` and CI run only `tests/unit/`, which needs no keys.
 
 ---
 
@@ -546,13 +571,13 @@ Do not hard-code provider mock behavior inside production classes.
 
 Use dependency injection or mock providers.
 
-Recommended future test provider:
+Test provider (implemented in `tests/support/mock-provider.ts`):
 
 ```text
 MockJevProvider
 ```
 
-This should implement the same provider interface as TypeSafeProvider.
+It implements the same provider interface as `TypeSafeProvider`. Use it in unit tests instead of mocking provider classes.
 
 ---
 
