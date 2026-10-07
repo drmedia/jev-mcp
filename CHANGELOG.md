@@ -7,7 +7,10 @@ include breaking changes.
 
 ## [Unreleased]
 
-Phase 9 defined in AGENTS.md.
+## [0.4.0] - 2026-10-07
+
+Completes Phase 9 defined in [AGENTS.md](AGENTS.md): batch evaluation. Also adds a
+configurable request timeout, log levels and the MIT license.
 
 ### Added
 
@@ -146,7 +149,8 @@ First release. Completes MVP phases 1-5 defined in [AGENTS.md](AGENTS.md).
   [docs/typesafe-api-notes.md](docs/typesafe-api-notes.md).
 - GitHub Actions CI: typecheck, unit tests and build on Node 20 and 22.
 
-[Unreleased]: https://github.com/drmedia/jev-mcp/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/drmedia/jev-mcp/compare/v0.4.0...HEAD
+[0.4.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.4.0
 [0.3.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.3.0
 [0.2.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.2.0
 [0.1.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.1.0
