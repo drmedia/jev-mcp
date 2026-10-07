@@ -20,6 +20,11 @@ Phase 7 defined in [AGENTS.md](AGENTS.md).
   the bytes, 4 MiB each and 8 MiB in total.
 - OpenRouter sends images to image-capable models (`cloudflare/clef`,
   `cloudflare/clef-flash`) as image parts in `state`, verified against the live API.
+- OpenRouter image requests above 384,000 bytes of images in total are rejected
+  before sending: OpenRouter returns 413 above about that size (measured), far below
+  Clef's documented 4 MiB per image.
+- docs/openrouter-notes.md records the measured image limit, a small real-photo
+  check, and request-level differences between Jev and Clef.
 
 ### Security
 
@@ -31,6 +36,7 @@ Phase 7 defined in [AGENTS.md](AGENTS.md).
 
 ### Changed
 
+- HTTP 413 maps to `invalid_request` instead of `provider_error`.
 - OpenRouter model discovery follows the documented `Model` schema: `description` is
   optional (the model name is used instead) and `input_modalities` is required.
 

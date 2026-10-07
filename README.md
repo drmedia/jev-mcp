@@ -86,6 +86,11 @@ Before anything is sent, JEV Core checks that there are at most 4 images, that e
 is PNG, JPEG or WebP (from the bytes, not the name), and that each is at most 4 MiB
 with 8 MiB in total. Image parts placed inside `state` are rejected.
 
+Through OpenRouter the practical limit is much lower than Clef documents: requests
+with more than about 384 KB of images in total fail there (measured, not documented),
+so they are rejected before sending. Downscale or recompress photos first; a
+1024-pixel JPEG is usually well under the limit.
+
 Only image-capable models receive images: today `cloudflare/clef` and
 `cloudflare/clef-flash` with `JEV_PROVIDER=openrouter`. Requests with images to any
 other model, including Jev, fail before they are sent, because Jev answers images

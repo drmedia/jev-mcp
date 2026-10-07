@@ -108,22 +108,79 @@ image parts anywhere in `state`.
 | --- | --- |
 | PNG, JPEG, WebP only | OpenRouter image guide; Clef schema |
 | At most 4 images | Clef schema; live 400 "Clef accepts at most 4 images, got 5" |
-| 4 MiB each, 8 MiB total, 16 megapixels each, 13 MiB body | Clef schema |
+| 4 MiB each, 8 MiB total, 16 megapixels each, 13 MiB body | Clef schema (not reachable through OpenRouter, see below) |
+| About 384 KB of images per request | Measured through OpenRouter, not documented |
 | No remote URLs | Clef schema; live 400 "Clef accepts only embedded base64 ... data URL images" |
 
-JEV Core checks the count, formats (from the bytes) and byte sizes. The 16
-megapixel limit is not checked locally; OpenRouter's error is passed through.
+**Measured size limit (much lower than documented):** OpenRouter estimates the
+tokens of an image from its encoded size (about bytes / 3) and returns 413
+"The estimated number of input and maximum output tokens (N) exceeded this model
+context window limit (65536)" above a threshold. Measured on 2026-10-07 for both
+`cloudflare/clef` and `cloudflare/clef-flash`:
+
+| Images | Result |
+| --- | --- |
+| 1 photo, 245 KB (JPEG) | 200 |
+| 1 image, 389,000 bytes | 200 |
+| 1 image, 411,600 bytes | 413 (estimate 137,124) |
+| 1 photo, 624 KB (JPEG) | 413 (estimate 208,406) |
+| 2 images, 270 KB each | 413 (the limit is the request total) |
+| 1 image, 3000 x 3000 px but 32 KB | 200 (bytes count, not pixels) |
+
+The actual token usage of accepted images is small (about 900 to 1,700 input tokens
+per photo). The provider rejects requests whose images exceed 384,000 bytes in
+total (`OPENROUTER_MAX_TOTAL_IMAGE_BYTES`, just below the largest size seen to pass)
+before sending, with a message asking to resize or recompress. Typical phone photos
+are larger, so the calling agent should downscale them first; this server does not
+resize images (that would need an image-processing dependency). The other limits
+(count, format, 4 MiB each, 8 MiB total) are checked for every provider.
+
+The 16 megapixel limit is not checked locally; OpenRouter's error is passed through.
 OpenRouter's guide allows remote URLs in general, but Clef does not, so this server
 accepts only `data` and allowed local `path` sources.
 
+**Vision quality check (small sample, not a benchmark):** six photos (concrete
+wall with hairline cracks, worker in a hard hat without eye protection, a
+storefront named "The Rusty Bolt" with a Route 66 sign, a cat, a WebP landscape)
+with seven questions each. Both Clef models answered all 30 scored items correctly,
+including "no physical rusty bolt" for the storefront and "no eye protection" for the
+worker. Hairline cracks: `cloudflare/clef` 0.80, `clef-flash` 0.63. With four photos in
+one request, Clef identified which photo showed the cat (0.99) and the hard hat
+(0.98). Accuracy on real inspection photos still needs a labeled sample.
+
+**Jev with a real photo:** sent as an image part directly to TypeSafe and through
+OpenRouter, the hard-hat photo was answered `other` with 0.88 to 0.92 probability
+and confidence 0.85 to 0.90, and billed about 10,000 input tokens: the image was
+read as text. This confident wrong answer is why text-only models must never
+receive images.
+
 **Video:** Clef's model card mentions video, but neither OpenRouter's System One
 reference nor Cloudflare's Clef schema documents a video input. Not supported.
+
+## Model differences that affect requests
+
+Verified on 2026-10-07 by sending the same requests to Jev (TypeSafe direct and
+OpenRouter) and to Clef (OpenRouter).
+
+| Behavior | Jev | Clef | Source |
+| --- | --- | --- | --- |
+| Question IDs | Any string; Korean and spaces work | Letters, digits, `_`, `.`, `-`, up to 100 characters; others return 422 | Clef model page; live |
+| Choice options | One option accepted | 2 to 255 options; one option returns 422 | Clef schema; live |
+| Questions per request | No documented count limit | At most 64; 65 return 422 | Clef schema; live |
+| Long text state | `max_tokens_exceeded` (400) above about 32k state tokens (TypeSafe direct) | Answered correctly up to 118k input tokens with the fact at 25, 50 or 75 percent; all input tokens are billed; about 207k returned 413 | Live |
+| Confidence | Higher for the same question (department 0.82) | Lower (clef-flash 0.47, clef 0.64) | Live; set thresholds per model |
+| Output tokens | Reported | Reported as 0 | Live |
+
+Clef's model page says long text state "is truncated to fit the model's token
+limit". No truncation was observed in the test above; treat the behavior as
+undocumented. These differences are not checked locally yet: requests that break
+Clef's rules fail with the provider's 422 message.
 
 ## Error mapping
 
 | Status | Kind | Retried |
 | --- | --- | --- |
-| 400, 422 | `invalid_request` | no |
+| 400, 413, 422 | `invalid_request` | no |
 | 401 | `authentication` | no |
 | 402 (insufficient credits) | `payment_required` | no |
 | 403 | `authorization` | no |
