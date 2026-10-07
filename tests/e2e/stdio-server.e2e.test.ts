@@ -52,6 +52,7 @@ describe("stdio MCP server (e2e)", () => {
       expect(tools.map((tool) => tool.name).sort()).toEqual([
         "jev.choice",
         "jev.evaluate",
+        "jev.evaluate_batch",
         "jev.models",
         "jev.noul",
         "jev.score",
@@ -94,6 +95,49 @@ describe("stdio MCP server (e2e)", () => {
         .answer;
       expect(answer.type).toBe("choice");
       expect(["billing", "technical", "sales"]).toContain(answer.choice);
+    },
+  );
+
+  it.skipIf(!hasApiKey)(
+    "MCP client -> stdio -> jev.evaluate_batch -> JevCore -> TypeSafeProvider, one request per item",
+    async () => {
+      const mcp = await connect(serverEnv({ JEV_MAX_CONCURRENCY: "2" }));
+
+      const result = (await mcp.callTool({
+        name: "jev.evaluate_batch",
+        arguments: {
+          items: [
+            { id: "payout", state: "My payout has failed three times this week and I need the money." },
+            { id: "crash", state: "The mobile app crashes every time I open the settings screen." },
+            { id: "thanks", state: "Just wanted to say the new dashboard looks great, thanks!" },
+          ],
+          questions: {
+            team: {
+              type: "choice",
+              instructions: "Which team should handle this customer message?",
+              criteria: {
+                billing: "Payments, payouts, refunds",
+                technical: "Bugs, crashes, outages",
+                none: "No action needed",
+              },
+            },
+          },
+        },
+      })) as CallToolResult;
+
+      expect(result.isError).toBeFalsy();
+      const content = result.structuredContent as {
+        results: { id: string; status: string; answers?: { team: { choice: string } } }[];
+        summary: { ok: number };
+        usage: { inputTokens: number };
+      };
+      expect(content.summary.ok).toBe(3);
+      expect(content.results.map((item) => [item.id, item.answers?.team.choice])).toEqual([
+        ["payout", "billing"],
+        ["crash", "technical"],
+        ["thanks", "none"],
+      ]);
+      expect(content.usage.inputTokens).toBeGreaterThan(0);
     },
   );
 

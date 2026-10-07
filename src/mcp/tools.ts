@@ -7,9 +7,11 @@ import {
   jevNoulInputSchema,
   jevScoreInputSchema,
 } from "../schemas/convenience.js";
+import { jevEvaluateBatchInputSchema, MAX_BATCH_ITEMS } from "../schemas/batch.js";
 import { jevEvaluateInputSchema, type JevQuestion } from "../schemas/evaluate.js";
 import {
   jevChoiceResultSchema,
+  jevEvaluateBatchResultSchema,
   jevEvaluateResultSchema,
   jevModelListSchema,
   jevNoulResultSchema,
@@ -117,6 +119,14 @@ Question IDs are not shown to the model, so \`instructions\` must state the full
 
 ${IMAGES_HELP}`;
 
+const EVALUATE_BATCH_DESCRIPTION = `Ask TypeSafe Jev the same typed questions about many items (up to ${MAX_BATCH_ITEMS}) in one call, for example to classify a list of tickets or to score every search result and sort them.
+
+\`items\` is a list of { "state": ..., "id"?: "...", "images"?: [...] }; each item is judged on its own. \`questions\` and the optional \`model\` work exactly as in jev.evaluate and apply to every item. Use a choice question to classify, a score or noul question to rank, and several questions to tag.
+
+Each item is a separate provider request and is billed separately. Every item is checked before anything is sent; one invalid item rejects the whole call. Returns \`results\` in input order: \`status\` "ok" with \`answers\` and \`usage\`, "error" with the item's own \`error\`, or "skipped" when an earlier error (for example authentication or no credits) would also have hit it. \`summary\` counts each status and \`usage\` adds up the successful items.
+
+${IMAGES_HELP.replace("judged together with `state`", "judged together with the item's `state`")}`;
+
 export function registerJevTools(server: McpServer, core: JevCore): void {
   server.registerTool(
     "jev.evaluate",
@@ -130,6 +140,24 @@ export function registerJevTools(server: McpServer, core: JevCore): void {
     async (input, extra) => {
       try {
         return toolSuccess({ ...(await core.evaluate(input, { signal: extra.signal })) });
+      } catch (error) {
+        return toolError(error, extra.signal);
+      }
+    },
+  );
+
+  server.registerTool(
+    "jev.evaluate_batch",
+    {
+      title: "Evaluate many items with Jev",
+      description: EVALUATE_BATCH_DESCRIPTION,
+      inputSchema: jevEvaluateBatchInputSchema,
+      outputSchema: jevEvaluateBatchResultSchema,
+      annotations: { readOnlyHint: true, openWorldHint: true },
+    },
+    async (input, extra) => {
+      try {
+        return toolSuccess({ ...(await core.evaluateBatch(input, { signal: extra.signal })) });
       } catch (error) {
         return toolError(error, extra.signal);
       }
