@@ -132,3 +132,8 @@ in one request.
 | `npm run test:contract` | Provider tests against the real TypeSafe API (uses `.env`) |
 | `npm run test:e2e` | Build, then drive the stdio server over MCP against the real API |
 | `npm start` | Start the stdio server |
+
+GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs
+`typecheck`, `test` and `build` on Node 20 and 22 for every push to `main` and every
+pull request. It needs no secrets. The contract and e2e suites call the real API and
+are run locally with a key.
