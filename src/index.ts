@@ -54,14 +54,21 @@ export {
   MAX_IMAGES,
   MAX_TOTAL_IMAGE_BYTES,
 } from "./images/image-data.js";
-export { createJevMcpServer } from "./mcp/server.js";
+export { createJevMcpServer, type JevMcpServerOptions } from "./mcp/server.js";
+export {
+  createLogger,
+  LOG_LEVELS,
+  silentLogger,
+  type Logger,
+  type LogLevel,
+} from "./observability/logger.js";
 export {
   DEFAULT_RETRY_POLICY,
   RetryingJevProvider,
   type RetryingJevProviderOptions,
   type RetryPolicy,
 } from "./providers/retrying-provider.js";
-export { createProvider } from "./providers/create-provider.js";
+export { createProvider, type CreateProviderOptions } from "./providers/create-provider.js";
 export {
   LocalProvider,
   type LocalProviderOptions,

@@ -477,8 +477,8 @@ Implemented in `RetryingJevProvider`:
 - retried: `rate_limited` (429), `overloaded`, `timeout`, `network`, and `provider_error` with HTTP 500, 502, 503 or 504
 - never retried: every other error kind, including `refused`
 - maximum retry count: `JEV_MAX_RETRIES` (default 2, 0 to 10)
-- exponential backoff with full jitter, at most 8 seconds per wait; a provider `retry-after` is honored up to the same limit
-- per-request timeout: 30 seconds (fixed; `JEV_TIMEOUT_MS` is a possible future setting)
+- exponential backoff with full jitter, at most 8 seconds per wait; a provider `retry-after` of 8 seconds or less is honored, and a longer one ends retrying
+- per-attempt timeout: `JEV_TIMEOUT_MS` (default 30 seconds)
 - cancellation: a cancelled MCP request stops retries and waits
 
 Change the retry policy only when a task explicitly requests it.
@@ -504,13 +504,13 @@ JEV_MAX_RETRIES
 JEV_MAX_CONCURRENCY
 JEV_IMAGE_DIRS
 JEV_MAX_INPUT_CHARS
+JEV_TIMEOUT_MS
+JEV_LOG_LEVEL
 ```
 
 Future configuration may include:
 
 ```text
-JEV_TIMEOUT_MS
-JEV_LOG_LEVEL
 PORT
 ```
 

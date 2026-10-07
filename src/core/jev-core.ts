@@ -1,5 +1,6 @@
 import type { z } from "zod";
 import type { ImageFileLoader } from "../images/directory-image-loader.js";
+import { excerpt, silentLogger, type Logger } from "../observability/logger.js";
 import {
   checkImageSet,
   containsImagePart,
@@ -42,6 +43,8 @@ export interface JevCoreOptions {
   maxInputChars?: number;
   /** Maximum provider requests evaluateBatch runs at the same time. Defaults to 4. */
   maxConcurrency?: number;
+  /** Receives per-request diagnostics. Defaults to discarding them. */
+  logger?: Logger;
 }
 
 const DEFAULT_MAX_CONCURRENCY = 4;
@@ -121,8 +124,10 @@ export class JevCore {
   readonly #loadImageFile: ImageFileLoader | undefined;
   readonly #maxInputChars: number;
   readonly #maxConcurrency: number;
+  readonly #logger: Logger;
 
   constructor(options: JevCoreOptions) {
+    this.#logger = options.logger ?? silentLogger;
     this.#provider = options.provider;
     this.#defaultModel = options.defaultModel;
     this.#loadImageFile = options.loadImageFile;
@@ -256,16 +261,33 @@ export class JevCore {
 
   /** Sends one request and rejects answers that do not match the questions asked. */
   async #send(request: JevEvaluateRequest, options?: JevRequestOptions): Promise<JevEvaluateResult> {
-    const result = await this.#provider.evaluate(request, options);
-    const problems = findAnswerProblems(request, result);
-    if (problems.length > 0) {
-      throw new JevError(
-        "invalid_response",
-        `Provider answers do not match the questions: ${problems.join("; ")}`,
-        { details: { problems, result } },
+    const started = Date.now();
+    const subject = `evaluate model=${request.model} questions=${Object.keys(request.questions).length} images=${request.images?.length ?? 0}`;
+    try {
+      const result = await this.#provider.evaluate(request, options);
+      const problems = findAnswerProblems(request, result);
+      if (problems.length > 0) {
+        throw new JevError(
+          "invalid_response",
+          `Provider answers do not match the questions: ${problems.join("; ")}`,
+          { details: { problems, result } },
+        );
+      }
+      const { inputTokens, outputTokens, costUsd } = result.usage;
+      this.#logger.debug(
+        `${subject} ok in ${Date.now() - started} ms (answered by ${result.model}, tokens ${inputTokens}/${outputTokens}${costUsd !== undefined ? `, cost ${costUsd} USD` : ""})`,
       );
+      return result;
+    } catch (error) {
+      if (error instanceof JevError) {
+        this.#logger.debug(`${subject} failed in ${Date.now() - started} ms with ${error.kind}`);
+        // The tool result carries only the message; the provider's payload is kept for diagnosis here.
+        if (error.kind === "invalid_response") {
+          this.#logger.warn(`Invalid provider response: ${error.message}. Provider payload: ${excerpt(error.details)}`);
+        }
+      }
+      throw error;
     }
-    return result;
   }
 
   async #resolveImages(sources: readonly JevImageSource[]): Promise<JevImage[]> {

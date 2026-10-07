@@ -1,6 +1,7 @@
 import { delimiter, isAbsolute } from "node:path";
 import { z } from "zod";
 import { JevError } from "../core/errors.js";
+import { LOG_LEVELS, type LogLevel } from "../observability/logger.js";
 
 export const DEFAULT_TYPESAFE_BASE_URL = "https://api.typesafe.ai";
 export const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api";
@@ -9,6 +10,10 @@ export const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:8097";
 export const DEFAULT_JEV_MODEL = "jev-latest";
 export const DEFAULT_JEV_MAX_RETRIES = 2;
 export const MAX_JEV_MAX_RETRIES = 10;
+export const DEFAULT_JEV_TIMEOUT_MS = 30_000;
+export const MIN_JEV_TIMEOUT_MS = 1_000;
+export const MAX_JEV_TIMEOUT_MS = 600_000;
+export const DEFAULT_JEV_LOG_LEVEL: LogLevel = "warn";
 export const DEFAULT_JEV_MAX_CONCURRENCY = 4;
 export const MAX_JEV_MAX_CONCURRENCY = 16;
 /**
@@ -39,6 +44,10 @@ export interface JevConfig {
   maxInputChars: number;
   /** Maximum provider requests a batch runs at the same time. */
   maxConcurrency: number;
+  /** Time limit for each provider HTTP request, per attempt. */
+  timeoutMs: number;
+  /** Least severe level written to stderr. */
+  logLevel: LogLevel;
 }
 
 // Empty strings (e.g. `TYPESAFE_BASE_URL=` copied from .env.example) count as unset.
@@ -56,7 +65,8 @@ function baseUrl(variable: string, fallback: string) {
     .transform((value) => (value ?? fallback).replace(/\/+$/, ""));
 }
 
-const maxConcurrencyMessage = `JEV_MAX_CONCURRENCY must be a whole number from 1 to ${MAX_JEV_MAX_CONCURRENCY}`;
+const timeoutMessage = `JEV_TIMEOUT_MS must be a whole number of milliseconds from ${MIN_JEV_TIMEOUT_MS} to ${MAX_JEV_TIMEOUT_MS}`;
+const maxConcurrencyMessage =`JEV_MAX_CONCURRENCY must be a whole number from 1 to ${MAX_JEV_MAX_CONCURRENCY}`;
 const maxRetriesMessage =`JEV_MAX_RETRIES must be a whole number from 0 to ${MAX_JEV_MAX_RETRIES}`;
 
 const envSchema = z.object({
@@ -101,6 +111,21 @@ const envSchema = z.object({
       .transform(Number)
       .optional()
       .transform((value) => value ?? DEFAULT_JEV_MAX_INPUT_CHARS),
+  ),
+  JEV_TIMEOUT_MS: optionalString.pipe(
+    z
+      .string()
+      .regex(/^\d+$/, timeoutMessage)
+      .transform(Number)
+      .pipe(z.number().min(MIN_JEV_TIMEOUT_MS, timeoutMessage).max(MAX_JEV_TIMEOUT_MS, timeoutMessage))
+      .optional()
+      .transform((value) => value ?? DEFAULT_JEV_TIMEOUT_MS),
+  ),
+  JEV_LOG_LEVEL: optionalString.pipe(
+    z
+      .enum(LOG_LEVELS, { error: `JEV_LOG_LEVEL must be one of: ${LOG_LEVELS.join(", ")}` })
+      .optional()
+      .transform((value) => value ?? DEFAULT_JEV_LOG_LEVEL),
   ),
   JEV_MAX_CONCURRENCY: optionalString.pipe(
     z
@@ -161,5 +186,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): JevConfig {
     imageDirectories: data.JEV_IMAGE_DIRS,
     maxInputChars: data.JEV_MAX_INPUT_CHARS,
     maxConcurrency: data.JEV_MAX_CONCURRENCY,
+    timeoutMs: data.JEV_TIMEOUT_MS,
+    logLevel: data.JEV_LOG_LEVEL,
   };
 }

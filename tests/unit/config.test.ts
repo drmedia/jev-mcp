@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_JEV_MAX_CONCURRENCY,
   DEFAULT_JEV_MAX_INPUT_CHARS,
+  DEFAULT_JEV_TIMEOUT_MS,
   DEFAULT_JEV_MAX_RETRIES,
   DEFAULT_JEV_MODEL,
   DEFAULT_LOCAL_BASE_URL,
@@ -32,6 +33,34 @@ describe("loadConfig", () => {
       imageDirectories: [],
       maxInputChars: DEFAULT_JEV_MAX_INPUT_CHARS,
       maxConcurrency: DEFAULT_JEV_MAX_CONCURRENCY,
+      timeoutMs: DEFAULT_JEV_TIMEOUT_MS,
+      logLevel: "warn",
+    });
+  });
+
+  describe("JEV_TIMEOUT_MS", () => {
+    it("defaults to 30 seconds and accepts 1 second to 10 minutes", () => {
+      expect(DEFAULT_JEV_TIMEOUT_MS).toBe(30_000);
+      expect(loadConfig({ TYPESAFE_API_KEY: "k", JEV_TIMEOUT_MS: "1000" }).timeoutMs).toBe(1_000);
+      expect(loadConfig({ TYPESAFE_API_KEY: "k", JEV_TIMEOUT_MS: " 600000 " }).timeoutMs).toBe(600_000);
+    });
+
+    it.each(["999", "600001", "30s", "1.5"])("rejects %j", (value) => {
+      expect(configError({ TYPESAFE_API_KEY: "k", JEV_TIMEOUT_MS: value }).message).toMatch(
+        /JEV_TIMEOUT_MS must be a whole number of milliseconds from 1000 to 600000/,
+      );
+    });
+  });
+
+  describe("JEV_LOG_LEVEL", () => {
+    it.each(["error", "warn", "info", "debug"])("accepts %s", (value) => {
+      expect(loadConfig({ TYPESAFE_API_KEY: "k", JEV_LOG_LEVEL: value }).logLevel).toBe(value);
+    });
+
+    it("rejects an unknown level", () => {
+      expect(configError({ TYPESAFE_API_KEY: "k", JEV_LOG_LEVEL: "verbose" }).message).toMatch(
+        /JEV_LOG_LEVEL must be one of: error, warn, info, debug/,
+      );
     });
   });
 
