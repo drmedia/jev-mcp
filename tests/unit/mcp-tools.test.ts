@@ -66,6 +66,7 @@ describe("MCP tools", () => {
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       "jev.choice",
       "jev.evaluate",
+      "jev.evaluate_batch",
       "jev.models",
       "jev.noul",
       "jev.score",
@@ -103,6 +104,50 @@ describe("MCP tools", () => {
 
     expect(result.isError).toBeFalsy();
     expect(result.structuredContent).toEqual(withCost);
+  });
+
+  it("jev.evaluate_batch returns per-item results through JevCore", async () => {
+    const provider = new MockJevProvider({
+      evaluate: (request) => {
+        if (request.state === "broken") throw new JevError("invalid_request", "rejected", { status: 422 });
+        return evaluateResult;
+      },
+    });
+    const mcp = await connect(provider);
+
+    const result = (await mcp.callTool({
+      name: "jev.evaluate_batch",
+      arguments: {
+        items: [{ id: "first", state: evaluateArgs.state }, { state: "broken" }],
+        questions: evaluateArgs.questions,
+      },
+    })) as CallToolResult;
+
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toEqual({
+      results: [
+        { index: 0, id: "first", status: "ok", ...evaluateResult },
+        { index: 1, status: "error", error: { kind: "invalid_request", message: "rejected", status: 422 } },
+      ],
+      summary: { ok: 1, error: 1, skipped: 0 },
+      usage: evaluateResult.usage,
+    });
+    expect(provider.evaluateCalls.map((request) => request.model)).toEqual(["jev-latest", "jev-latest"]);
+  });
+
+  it("jev.evaluate_batch reports an invalid item as a tool error without calling the provider", async () => {
+    const provider = new MockJevProvider({ evaluate: () => evaluateResult });
+    const mcp = await connect(provider);
+
+    const result = (await mcp.callTool({
+      name: "jev.evaluate_batch",
+      arguments: { items: [{ state: "ok" }, { state: "x", images: [{ data: "not a data url" }] }], questions: evaluateArgs.questions },
+    })) as CallToolResult;
+
+    const error = errorBody(result);
+    expect(error.kind).toBe("invalid_input");
+    expect(error.message).toMatch(/^items\[1\]: images\[0\]/);
+    expect(provider.evaluateCalls).toHaveLength(0);
   });
 
   it("jev.evaluate rejects malformed questions without calling the provider", async () => {

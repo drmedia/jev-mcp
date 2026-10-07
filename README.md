@@ -40,6 +40,7 @@ npm run build
 | `JEV_MAX_RETRIES` | no | `2` (0 to 10; 0 disables retries) |
 | `JEV_IMAGE_DIRS` | no | unset: image `path` disabled. Absolute directories, separated by `;` on Windows and `:` elsewhere |
 | `JEV_MAX_INPUT_CHARS` | no | `256000` characters of `state` plus `questions` per request; `0` disables |
+| `JEV_MAX_CONCURRENCY` | no | `4` (1 to 16) provider requests at a time in `jev.evaluate_batch` |
 
 ## Checks before sending
 
@@ -201,6 +202,41 @@ Evaluates `state` against a map of `questions` in one provider request.
 The result has `model`, `answers` (keyed by question ID) and `usage`. Failures come
 back as tool errors with a `kind` such as `invalid_input`, `authentication`,
 `rate_limited` or `invalid_response`. No answer is ever fabricated.
+
+### `jev.evaluate_batch`
+
+Asks the same `questions` about many `items` (up to 100) in one tool call: classify
+a list of tickets with a choice question, or score every search result and sort by
+the score. Each item has its own `state`, optional `id` and optional `images`;
+`questions` and `model` work as in `jev.evaluate`.
+
+```json
+{
+  "items": [
+    { "id": "t1", "state": "My payout failed again." },
+    { "id": "t2", "state": "The app crashes when I log in." }
+  ],
+  "questions": {
+    "team": {
+      "type": "choice",
+      "instructions": "Which team should handle this ticket?",
+      "criteria": { "billing": "Payments, refunds", "technical": "Bugs, outages" }
+    }
+  }
+}
+```
+
+The System One APIs take one `state` per request, so each item is a separate
+provider request and is billed separately. At most `JEV_MAX_CONCURRENCY` requests
+run at the same time.
+
+- Every item is checked before anything is sent; one invalid item rejects the call.
+- `results` come back in input order, each with `status` `ok` (with `answers` and
+  `usage`), `error` (the item's own error), or `skipped`.
+- After `authentication`, `authorization`, `payment_required` or `configuration`
+  errors, items not yet sent are `skipped`, because they would fail the same way.
+- `summary` counts each status; `usage` adds up the successful items, with
+  `costUsd` only when every successful item reported one.
 
 ### `jev.models`
 

@@ -747,6 +747,17 @@ Phase 8 (local provider) is complete when:
 - contract and e2e tests for the local server run only when a local server is reachable,
 - `main` passes CI.
 
+Phase 9 (batch evaluation) is complete when:
+
+- `jev.evaluate_batch` asks the same questions about up to 100 items in one tool call; each item has its own `state` and optional `images`, so general-purpose classification and ranking need no task-specific tools,
+- every item is validated with the same checks as `jev.evaluate` before any request is sent; one invalid item rejects the whole batch,
+- items go through the same JEV Core evaluation path and provider interface as `jev.evaluate`, one provider request per item, because neither the TypeSafe nor the OpenRouter System One API accepts several states in one request,
+- at most `JEV_MAX_CONCURRENCY` item requests run at the same time (default 4),
+- each item reports its own answers or its own error in input order; a failed item never receives fabricated answers and does not hide the results of other items,
+- after an error that every remaining item would also hit (`configuration`, `authentication`, `authorization`, `payment_required`), the remaining items are not sent and are reported as skipped,
+- total usage adds up the successful items only, and a total cost is reported only when every successful item reported one,
+- `main` passes CI.
+
 ---
 
 ## 26. Out of Scope for Initial MVP

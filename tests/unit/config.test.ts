@@ -1,6 +1,7 @@
 import { delimiter, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_JEV_MAX_CONCURRENCY,
   DEFAULT_JEV_MAX_INPUT_CHARS,
   DEFAULT_JEV_MAX_RETRIES,
   DEFAULT_JEV_MODEL,
@@ -30,6 +31,21 @@ describe("loadConfig", () => {
       jevMaxRetries: DEFAULT_JEV_MAX_RETRIES,
       imageDirectories: [],
       maxInputChars: DEFAULT_JEV_MAX_INPUT_CHARS,
+      maxConcurrency: DEFAULT_JEV_MAX_CONCURRENCY,
+    });
+  });
+
+  describe("JEV_MAX_CONCURRENCY", () => {
+    it("defaults to 4 and accepts 1 to 16", () => {
+      expect(DEFAULT_JEV_MAX_CONCURRENCY).toBe(4);
+      expect(loadConfig({ TYPESAFE_API_KEY: "k", JEV_MAX_CONCURRENCY: "1" }).maxConcurrency).toBe(1);
+      expect(loadConfig({ TYPESAFE_API_KEY: "k", JEV_MAX_CONCURRENCY: " 16 " }).maxConcurrency).toBe(16);
+    });
+
+    it.each(["0", "17", "2.5", "many"])("rejects %j", (value) => {
+      expect(configError({ TYPESAFE_API_KEY: "k", JEV_MAX_CONCURRENCY: value }).message).toMatch(
+        /JEV_MAX_CONCURRENCY must be a whole number from 1 to 16/,
+      );
     });
   });
 

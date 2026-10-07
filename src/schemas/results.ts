@@ -50,6 +50,45 @@ export const jevEvaluateResultSchema = z.object({
   usage: usageSchema,
 });
 
+const batchItemFields = {
+  index: z.number().int().min(0).describe("Position of the item in `items`"),
+  id: z.string().optional().describe("The item's `id`, when one was given"),
+};
+
+export const jevEvaluateBatchResultSchema = z.object({
+  results: z
+    .array(
+      z.discriminatedUnion("status", [
+        z.object({
+          ...batchItemFields,
+          status: z.literal("ok"),
+          model: modelField,
+          answers: z.record(z.string(), jevAnswerSchema).describe("One answer per question ID"),
+          usage: usageSchema,
+        }),
+        z.object({
+          ...batchItemFields,
+          status: z.literal("error"),
+          error: z.object({ kind: z.string(), message: z.string(), status: z.number().int().optional() }),
+        }),
+        z.object({
+          ...batchItemFields,
+          status: z.literal("skipped"),
+          reason: z.string().describe("Why the item was not sent"),
+        }),
+      ]),
+    )
+    .describe("One result per item, in input order"),
+  summary: z.object({
+    ok: z.number().int().min(0),
+    error: z.number().int().min(0),
+    skipped: z.number().int().min(0),
+  }),
+  usage: usageSchema.describe(
+    "Sum over successful items; costUsd only when every successful item reported a cost",
+  ),
+});
+
 /** Result of a single-question convenience tool (jev.noul, jev.choice, jev.score). */
 function singleAnswerResultSchema<T extends z.ZodType>(answer: T) {
   return z.object({ model: modelField, answer, usage: usageSchema });
