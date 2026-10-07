@@ -37,6 +37,13 @@ Phases 12 and 13 defined in AGENTS.md.
 - `JevCore` takes optional `providerName` and `additionalProviders`; each provider
   keeps its own retry wrapper.
 
+### Fixed
+
+- `provider: "local"` failed through Docker with `ECONNREFUSED 127.0.0.1:8097`,
+  because `127.0.0.1` in the container is the container itself. `compose.yaml` now
+  sets `JEV_LOCAL_BASE_URL` to `http://host.docker.internal:8097`, which Docker
+  Desktop forwards to the host's loopback, so `llama-server` can stay on `127.0.0.1`.
+
 ## [0.5.0] - 2026-10-07
 
 Completes Phases 10 and 11 defined in [AGENTS.md](AGENTS.md): a local Streamable HTTP

@@ -212,9 +212,13 @@ Inside the container the server listens on `0.0.0.0` (`JEV_HTTP_HOST`), because
 Docker forwards the published port from outside the container. The `Host`, `Origin`
 and token checks still apply. Keep the published host port equal to `PORT`. Paths in
 `.env` such as `JEV_IMAGE_DIRS` refer to the host and are cleared in the container;
-mount a folder to use image paths (see the comment in `compose.yaml`). A local
-provider on the host is reachable as `http://host.docker.internal:8097` rather than
-`127.0.0.1`.
+mount a folder to use image paths (see the comment in `compose.yaml`).
+
+Inside the container `127.0.0.1` is the container itself, so `compose.yaml` sets
+`JEV_LOCAL_BASE_URL` to `http://host.docker.internal:8097`. Docker Desktop forwards
+that name to the host's loopback address, so a local server such as `llama-server`
+keeps listening on `127.0.0.1` only and `provider: "local"` works through Docker.
+Change the value in `compose.yaml` if your local server uses another port.
 
 Stop the non-Docker server first if it is running: both use port 8098.
 
