@@ -4,6 +4,8 @@ import { JevError } from "../core/errors.js";
 
 export const DEFAULT_TYPESAFE_BASE_URL = "https://api.typesafe.ai";
 export const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api";
+/** The port used in docs/local-provider.md; 8080, llama-server's own default, is often taken. */
+export const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:8097";
 export const DEFAULT_JEV_MODEL = "jev-latest";
 export const DEFAULT_JEV_MAX_RETRIES = 2;
 export const MAX_JEV_MAX_RETRIES = 10;
@@ -13,13 +15,15 @@ export const MAX_JEV_MAX_RETRIES = 10;
  * such as Korean uses more tokens per character, so the same limit allows more tokens.
  */
 export const DEFAULT_JEV_MAX_INPUT_CHARS = 256_000;
-export const PROVIDER_NAMES = ["typesafe", "openrouter"] as const;
+export const PROVIDER_NAMES = ["typesafe", "openrouter", "local"] as const;
 
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
 export type ProviderConfig =
   | { name: "typesafe"; apiKey: string; baseUrl: string }
-  | { name: "openrouter"; apiKey: string; baseUrl: string };
+  | { name: "openrouter"; apiKey: string; baseUrl: string }
+  /** A System One-compatible server the user runs; the key is optional. */
+  | { name: "local"; apiKey: string | undefined; baseUrl: string };
 
 export interface JevConfig {
   provider: ProviderConfig;
@@ -65,6 +69,11 @@ const envSchema = z.object({
     (value) => !/\/v1$/.test(value),
     "OPENROUTER_BASE_URL must be the API root without /v1 (for example https://openrouter.ai/api)",
   ),
+  JEV_LOCAL_BASE_URL: baseUrl("JEV_LOCAL_BASE_URL", DEFAULT_LOCAL_BASE_URL).refine(
+    (value) => !/\/v1$/.test(value),
+    "JEV_LOCAL_BASE_URL must be the server root without /v1 (for example http://127.0.0.1:8097)",
+  ),
+  JEV_LOCAL_API_KEY: optionalString,
   JEV_MODEL: optionalString.transform((value) => value ?? DEFAULT_JEV_MODEL),
   // Separated by the platform path delimiter: ";" on Windows, ":" elsewhere.
   JEV_IMAGE_DIRS: optionalString
@@ -125,6 +134,9 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): JevConfig {
         invalid("OPENROUTER_API_KEY is required when JEV_PROVIDER=openrouter");
       }
       provider = { name: "openrouter", apiKey: data.OPENROUTER_API_KEY, baseUrl: data.OPENROUTER_BASE_URL };
+      break;
+    case "local":
+      provider = { name: "local", apiKey: data.JEV_LOCAL_API_KEY, baseUrl: data.JEV_LOCAL_BASE_URL };
       break;
   }
 

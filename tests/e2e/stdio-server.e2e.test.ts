@@ -7,10 +7,12 @@ import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotoc
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, describe, expect, it } from "vitest";
 import { solidPng } from "../support/images.js";
+import { isLocalServerUp } from "../support/providers-from-env.js";
 
 const serverPath = fileURLToPath(new URL("../../dist/transport/stdio.js", import.meta.url));
 const hasApiKey = Boolean(process.env.TYPESAFE_API_KEY?.trim());
 const hasOpenRouterKey = Boolean(process.env.OPENROUTER_API_KEY?.trim());
+const localUp = await isLocalServerUp();
 
 let client: Client | undefined;
 
@@ -25,7 +27,7 @@ afterEach(async () => {
  */
 function serverEnv(overrides: Record<string, string>): Record<string, string> {
   const env: Record<string, string> = { ...getDefaultEnvironment() };
-  for (const key of ["TYPESAFE_API_KEY", "TYPESAFE_BASE_URL", "OPENROUTER_API_KEY"]) {
+  for (const key of ["TYPESAFE_API_KEY", "TYPESAFE_BASE_URL", "OPENROUTER_API_KEY", "JEV_LOCAL_BASE_URL"]) {
     const value = process.env[key];
     if (value !== undefined) env[key] = value;
   }
@@ -174,4 +176,39 @@ describe("stdio MCP server (e2e)", () => {
     // An empty variable wins over the local .env file, so the server must refuse to start.
     await expect(connect(serverEnv({ TYPESAFE_API_KEY: "" }))).rejects.toThrow();
   });
+});
+
+describe("stdio MCP server with a local provider (e2e)", () => {
+  it.skipIf(!localUp)(
+    "MCP client -> stdio -> jev.choice with an image path -> LocalProvider -> local Clef Flash",
+    async () => {
+      const dir = await mkdtemp(join(tmpdir(), "jev-e2e-local-"));
+      try {
+        await writeFile(join(dir, "part.png"), solidPng([220, 20, 20]));
+        const mcp = await connect(
+          serverEnv({ JEV_PROVIDER: "local", JEV_MODEL: "clef-flash", JEV_IMAGE_DIRS: dir }),
+        );
+
+        const result = (await mcp.callTool({
+          name: "jev.choice",
+          arguments: {
+            state: "Inspection photo of a part.",
+            instructions: "What is the dominant color of the attached image?",
+            criteria: { red: null, green: null, blue: null },
+            images: [{ path: join(dir, "part.png") }],
+          },
+        })) as CallToolResult;
+
+        expect(result.isError).toBeFalsy();
+        expect((result.structuredContent as { answer: { choice: string } }).answer.choice).toBe("red");
+
+        const models = (await mcp.callTool({ name: "jev.models", arguments: {} })) as CallToolResult;
+        expect((models.structuredContent as { models: { name: string }[] }).models.map((m) => m.name)).toContain(
+          "clef-flash",
+        );
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    },
+  );
 });

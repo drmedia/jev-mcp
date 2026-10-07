@@ -4,6 +4,7 @@ import {
   DEFAULT_JEV_MAX_INPUT_CHARS,
   DEFAULT_JEV_MAX_RETRIES,
   DEFAULT_JEV_MODEL,
+  DEFAULT_LOCAL_BASE_URL,
   DEFAULT_OPENROUTER_BASE_URL,
   DEFAULT_TYPESAFE_BASE_URL,
   loadConfig,
@@ -144,7 +145,32 @@ describe("loadConfig", () => {
 
     it("rejects an unknown provider", () => {
       const error = configError({ JEV_PROVIDER: "vercel", TYPESAFE_API_KEY: "k" });
-      expect(error.message).toMatch(/JEV_PROVIDER must be one of: typesafe, openrouter/);
+      expect(error.message).toMatch(/JEV_PROVIDER must be one of: typesafe, openrouter, local/);
+    });
+
+    it("selects a local server without requiring any key", () => {
+      expect(loadConfig({ JEV_PROVIDER: "local" }).provider).toEqual({
+        name: "local",
+        apiKey: undefined,
+        baseUrl: DEFAULT_LOCAL_BASE_URL,
+      });
+      expect(DEFAULT_LOCAL_BASE_URL).toBe("http://127.0.0.1:8097");
+    });
+
+    it("accepts a local base URL and an optional local key", () => {
+      expect(
+        loadConfig({
+          JEV_PROVIDER: "local",
+          JEV_LOCAL_BASE_URL: "http://192.168.0.20:8097/",
+          JEV_LOCAL_API_KEY: "secret",
+        }).provider,
+      ).toEqual({ name: "local", apiKey: "secret", baseUrl: "http://192.168.0.20:8097" });
+    });
+
+    it("rejects a local base URL ending in /v1", () => {
+      expect(
+        configError({ JEV_PROVIDER: "local", JEV_LOCAL_BASE_URL: "http://127.0.0.1:8097/v1" }).message,
+      ).toMatch(/JEV_LOCAL_BASE_URL must be the server root without \/v1/);
     });
 
     it("accepts a custom OpenRouter base URL and rejects one ending in /v1", () => {

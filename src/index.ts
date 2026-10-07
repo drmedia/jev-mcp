@@ -50,6 +50,10 @@ export {
 } from "./providers/retrying-provider.js";
 export { createProvider } from "./providers/create-provider.js";
 export {
+  LocalProvider,
+  type LocalProviderOptions,
+} from "./providers/local/local-provider.js";
+export {
   CLEF_MAX_QUESTIONS,
   CLEF_MAX_TOTAL_IMAGE_BYTES,
 } from "./providers/openrouter/clef-rules.js";
