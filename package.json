@@ -7,7 +7,8 @@
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "bin": {
-    "jev-mcp": "dist/transport/stdio.js"
+    "jev-mcp": "dist/transport/stdio.js",
+    "jev-mcp-http": "dist/transport/http.js"
   },
   "engines": {
     "node": ">=20.12"
@@ -18,7 +19,8 @@
     "test:contract": "vitest run --config vitest.contract.config.ts",
     "test:e2e": "npm run build && vitest run --config vitest.e2e.config.ts",
     "build": "tsc -p tsconfig.build.json",
-    "start": "node dist/transport/stdio.js"
+    "start": "node dist/transport/stdio.js",
+    "start:http": "node dist/transport/http.js"
   },
   "repository": {
     "type": "git",

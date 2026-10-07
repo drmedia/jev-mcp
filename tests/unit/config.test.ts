@@ -1,6 +1,7 @@
 import { delimiter, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_HTTP_PORT,
   DEFAULT_JEV_MAX_CONCURRENCY,
   DEFAULT_JEV_MAX_INPUT_CHARS,
   DEFAULT_JEV_TIMEOUT_MS,
@@ -10,6 +11,8 @@ import {
   DEFAULT_OPENROUTER_BASE_URL,
   DEFAULT_TYPESAFE_BASE_URL,
   loadConfig,
+  loadHttpConfig,
+  MIN_HTTP_TOKEN_LENGTH,
 } from "../../src/config/config.js";
 import { JevError } from "../../src/core/errors.js";
 
@@ -254,5 +257,37 @@ describe("loadConfig", () => {
         /JEV_MAX_RETRIES must be a whole number from 0 to 10/,
       );
     });
+  });
+});
+
+describe("loadHttpConfig", () => {
+  const token = "a".repeat(MIN_HTTP_TOKEN_LENGTH);
+
+  it("defaults to port 8098 and requires a token", () => {
+    expect(loadHttpConfig({ JEV_HTTP_TOKEN: token })).toEqual({ port: DEFAULT_HTTP_PORT, token });
+    expect(DEFAULT_HTTP_PORT).toBe(8098);
+    expect(loadHttpConfig({ JEV_HTTP_TOKEN: ` ${token} `, PORT: "9000" })).toEqual({ port: 9000, token });
+  });
+
+  it.each([{}, { JEV_HTTP_TOKEN: "" }, { JEV_HTTP_TOKEN: "   " }])("rejects a missing token (%o)", (env) => {
+    expect(() => loadHttpConfig(env)).toThrow(/JEV_HTTP_TOKEN is required for the HTTP server/);
+  });
+
+  it("rejects a short token without echoing it", () => {
+    let message = "";
+    try {
+      loadHttpConfig({ JEV_HTTP_TOKEN: "short-secret" });
+    } catch (error) {
+      expect(error).toBeInstanceOf(JevError);
+      message = (error as JevError).message;
+    }
+    expect(message).toMatch(/JEV_HTTP_TOKEN must be at least 32 characters/);
+    expect(message).not.toContain("short-secret");
+  });
+
+  it.each(["0", "65536", "http", "80.5"])("rejects PORT %j", (port) => {
+    expect(() => loadHttpConfig({ JEV_HTTP_TOKEN: token, PORT: port })).toThrow(
+      /PORT must be a whole number from 1 to 65535/,
+    );
   });
 });

@@ -27,6 +27,8 @@ Paths below use `/absolute/path/to/jev-mcp`; on Windows use a path such as
 | VS Code Copilot agent mode | stdio | Verified end to end (2026-10-07, VS Code 1.139); uses `.vscode/mcp.json` |
 | Claude Desktop | stdio | Verified end to end (2026-10-07, Windows) |
 | ChatGPT | stdio via Secure MCP Tunnel | Verified end to end (2026-10-07, tunnel-client 0.0.16) |
+| Claude Code | Streamable HTTP (local) | Verified end to end (2026-10-07, Claude Code 2.1.289) |
+| Codex CLI | Streamable HTTP (local) | Verified end to end (2026-10-07, codex-cli 0.160.0) |
 
 Both verified clients rewrite the tool names: `jev.evaluate` appears as
 `mcp__jev__jev_evaluate` and `jev.models` as `mcp__jev__jev_models`. Both accepted
@@ -81,6 +83,66 @@ an absolute path in `args`.
 VS Code may start the server as soon as the folder opens and keeps it running. After
 `npm run build`, run `MCP: List Servers`, select `jev`, then **Restart Server** so
 Copilot uses the new build.
+
+## Streamable HTTP (local)
+
+stdio is the simplest choice: each client starts its own server. The HTTP entry
+point instead runs one server process that several clients on this machine share.
+It listens only on `127.0.0.1` and every request needs a bearer token.
+
+### 1. Create a token
+
+The token must be at least 32 characters. Generate one and put it in `.env` as
+`JEV_HTTP_TOKEN`:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
+```
+
+Treat it like an API key: never commit it or paste it into chats.
+
+### 2. Start the server
+
+```bash
+npm run build
+npm run start:http
+```
+
+It prints `Listening on http://127.0.0.1:8098/mcp`. Set `PORT` to use another port.
+Stop it with Ctrl+C. After `npm run build`, restart it; clients reconnect on their
+next request.
+
+### 3. Connect a client
+
+Claude Code (the header is stored in Claude Code's configuration):
+
+```bash
+claude mcp add --transport http jev-http http://127.0.0.1:8098/mcp \
+  --header "Authorization: Bearer <JEV_HTTP_TOKEN>"
+```
+
+Codex CLI reads the token from an environment variable, so it is not stored in the
+config file:
+
+```bash
+codex mcp add jev-http --url http://127.0.0.1:8098/mcp --bearer-token-env-var JEV_HTTP_TOKEN
+```
+
+Set `JEV_HTTP_TOKEN` in the environment Codex runs in.
+
+Other clients need a Streamable HTTP URL and a way to send the
+`Authorization: Bearer` header. Clients that only support OAuth cannot connect yet.
+
+### What the server rejects
+
+| Request | Response |
+| --- | --- |
+| Missing or wrong token, or a token in the URL | 401 |
+| `Host` other than `127.0.0.1`, `localhost` or `[::1]` with the server's port | 403 |
+| `Origin` present and not a loopback origin for the port | 403 |
+| `GET` or `DELETE` (no event stream, no sessions) | 405 |
+| Body over 32 MiB | 413 |
+| Any path other than `/mcp` | 404 |
 
 ## After rebuilding
 

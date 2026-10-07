@@ -123,8 +123,8 @@ Later phases may include:
 - concurrency control (implemented for batches: Phase 9, `JEV_MAX_CONCURRENCY`)
 - telemetry
 - usage and cost metadata (implemented: token usage, and cost when the provider reports it)
-- authentication
-- Streamable HTTP transport
+- authentication (implemented for local HTTP: Phase 10, bearer token; OAuth is future)
+- Streamable HTTP transport (implemented locally: Phase 10, `src/transport/http.ts`; remote deployment is future)
 - Docker deployment
 - calibration utilities
 - domain adapters
@@ -172,6 +172,8 @@ Later production transport should support:
 ```text
 Streamable HTTP
 ```
+
+Streamable HTTP is implemented for local use (Phase 10): `src/transport/http.ts` listens on `127.0.0.1` only, statelessly, with a bearer token. Both entry points share `src/transport/runtime.ts`, so they serve identical tools.
 
 Do not build new functionality around deprecated SSE-only transport.
 
@@ -377,9 +379,10 @@ OPENROUTER_BASE_URL
 JEV_LOCAL_BASE_URL
 JEV_LOCAL_API_KEY
 JEV_MODEL
+JEV_HTTP_TOKEN
 ```
 
-`TYPESAFE_API_KEY`, `OPENROUTER_API_KEY` and `JEV_LOCAL_API_KEY` are secrets. A provider never falls back to another provider's key.
+`TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `JEV_LOCAL_API_KEY` and `JEV_HTTP_TOKEN` are secrets. A provider never falls back to another provider's key.
 
 Never log:
 
@@ -506,12 +509,8 @@ JEV_IMAGE_DIRS
 JEV_MAX_INPUT_CHARS
 JEV_TIMEOUT_MS
 JEV_LOG_LEVEL
-```
-
-Future configuration may include:
-
-```text
-PORT
+JEV_HTTP_TOKEN   (HTTP entry point only)
+PORT             (HTTP entry point only)
 ```
 
 Every new variable must be added to `src/config/config.ts`, `.env.example` (empty value) and the README configuration table.
