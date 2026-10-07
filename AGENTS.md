@@ -793,6 +793,17 @@ Phase 9 (batch evaluation) is complete when:
 - total usage adds up the successful items only, and a total cost is reported only when every successful item reported one,
 - `main` passes CI.
 
+Phase 10 (local Streamable HTTP transport) is complete when:
+
+- a second entry point, `src/transport/http.ts`, serves the same MCP tools over Streamable HTTP at `/mcp`, beside the unchanged stdio entry point; JEV Core, the tool definitions and the providers are unchanged,
+- the transport follows the current MCP Streamable HTTP specification (2025-11-25) through the SDK's `StreamableHTTPServerTransport`, statelessly: POST carries JSON-RPC messages, and GET and DELETE return 405 because the server offers no SSE stream and no sessions,
+- the server binds only to `127.0.0.1`, rejects requests whose `Host` is not a loopback name for its port, and rejects with 403 any request whose `Origin` header is present and is not a loopback origin for its port, to prevent DNS rebinding,
+- every request must carry `Authorization: Bearer <JEV_HTTP_TOKEN>`; the token comes from the environment, must be at least 32 characters, is compared in constant time, is never logged, and a missing or wrong token gets 401; tokens in the URL query string are not accepted,
+- `PORT` selects the port (default 8098), request bodies are limited in size, and configuration is read through the configuration module,
+- the HTTP entry point is verified end to end with an MCP client over HTTP, and at least one real MCP client (Claude Code) calls the tools through it,
+- OAuth, remote binding, TLS and cloud deployment remain out of scope; they belong to a later deployment phase,
+- `main` passes CI.
+
 ---
 
 ## 26. Out of Scope for Initial MVP
