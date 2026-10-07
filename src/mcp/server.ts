@@ -2,6 +2,7 @@ import { createRequire } from "node:module";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { JevCore } from "../core/jev-core.js";
 import { createLogger, type Logger } from "../observability/logger.js";
+import { buildServerInstructions } from "./instructions.js";
 import { registerJevTools } from "./tools.js";
 
 // Same relative path from src/mcp and dist/mcp.
@@ -14,7 +15,11 @@ export interface JevMcpServerOptions {
 
 /** Builds the transport-independent MCP server exposing the JEV tools. */
 export function createJevMcpServer(core: JevCore, options: JevMcpServerOptions = {}): McpServer {
-  const server = new McpServer({ name: "jev-mcp", version });
+  const instructions = buildServerInstructions({
+    providerNames: core.providerNames,
+    defaultProviderName: core.defaultProviderName,
+  });
+  const server = new McpServer({ name: "jev-mcp", version }, { instructions });
   registerJevTools(server, core, options.logger ?? createLogger());
   return server;
 }

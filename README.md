@@ -172,6 +172,11 @@ Verified with Claude Code, Codex CLI and ChatGPT (through OpenAI's Secure MCP
 Tunnel). Setup for each client, plus VS Code and Claude Desktop:
 [docs/clients.md](docs/clients.md).
 
+To build another application on jev-mcp (choosing tools, writing questions,
+providers, errors, cost and decision thresholds), read the integration guide:
+[docs/usage.md](docs/usage.md). The server also sends a short usage guide to every
+client in its MCP `instructions`, so a connected AI knows how to use the tools.
+
 ### Streamable HTTP
 
 Besides stdio, `npm run start:http` serves the same tools over Streamable HTTP at
