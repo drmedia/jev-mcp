@@ -8,8 +8,9 @@ get back calibrated probabilities.
 MCP client → stdio → MCP tools → JEV Core → JevProvider → TypeSafeProvider → TypeSafe Jev API
 ```
 
-See [AGENTS.md](AGENTS.md) for architecture and development rules, and
-[docs/typesafe-api-notes.md](docs/typesafe-api-notes.md) for the verified API contract.
+See [AGENTS.md](AGENTS.md) for architecture and development rules,
+[docs/typesafe-api-notes.md](docs/typesafe-api-notes.md) for the verified API contract,
+and [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Requirements
 
