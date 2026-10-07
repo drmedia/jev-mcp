@@ -38,7 +38,13 @@ describe("stdio MCP server (e2e)", () => {
       const mcp = await connect(serverEnv({}));
 
       const { tools } = await mcp.listTools();
-      expect(tools.map((tool) => tool.name).sort()).toEqual(["jev.evaluate", "jev.models"]);
+      expect(tools.map((tool) => tool.name).sort()).toEqual([
+        "jev.choice",
+        "jev.evaluate",
+        "jev.models",
+        "jev.noul",
+        "jev.score",
+      ]);
 
       const models = (await mcp.callTool({ name: "jev.models", arguments: {} })) as CallToolResult;
       expect(models.isError).toBeFalsy();
@@ -63,6 +69,20 @@ describe("stdio MCP server (e2e)", () => {
         .answers;
       expect(answers.is_urgent?.type).toBe("noul");
       expect(answers.frustration?.type).toBe("score");
+
+      const choice = (await mcp.callTool({
+        name: "jev.choice",
+        arguments: {
+          state: "Help! My payouts have been failing for 3 days.",
+          instructions: "Which team should handle this?",
+          criteria: { billing: "Payments, refunds", technical: "Bugs, outages", sales: null },
+        },
+      })) as CallToolResult;
+      expect(choice.isError).toBeFalsy();
+      const answer = (choice.structuredContent as { answer: { type: string; choice: string } })
+        .answer;
+      expect(answer.type).toBe("choice");
+      expect(["billing", "technical", "sales"]).toContain(answer.choice);
     },
   );
 
