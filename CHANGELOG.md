@@ -7,7 +7,10 @@ include breaking changes.
 
 ## [Unreleased]
 
-Phases 10 and 11 defined in AGENTS.md.
+## [0.5.0] - 2026-10-07
+
+Completes Phases 10 and 11 defined in [AGENTS.md](AGENTS.md): a local Streamable HTTP
+transport and Docker deployment, plus Windows start and stop scripts.
 
 ### Added
 
@@ -182,7 +185,8 @@ First release. Completes MVP phases 1-5 defined in [AGENTS.md](AGENTS.md).
   [docs/typesafe-api-notes.md](docs/typesafe-api-notes.md).
 - GitHub Actions CI: typecheck, unit tests and build on Node 20 and 22.
 
-[Unreleased]: https://github.com/drmedia/jev-mcp/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/drmedia/jev-mcp/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.5.0
 [0.4.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.4.0
 [0.3.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.3.0
 [0.2.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.2.0
