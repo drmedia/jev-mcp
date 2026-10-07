@@ -16,6 +16,10 @@ services:
       PORT: "8098"
       # Windows paths in .env do not exist in the container; see the volume example below.
       JEV_IMAGE_DIRS: ""
+      # 127.0.0.1 inside the container is the container itself. Docker Desktop forwards
+      # host.docker.internal to the host's loopback, so a local server such as
+      # llama-server can stay bound to 127.0.0.1 on the host.
+      JEV_LOCAL_BASE_URL: "http://host.docker.internal:8097"
     ports:
       # Published on the host's loopback address only; keep both port numbers equal,
       # because the server checks that the Host header carries its own port.
