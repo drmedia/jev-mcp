@@ -308,6 +308,7 @@ in one request.
 | `npm run test:e2e` | Build, then drive the stdio server over MCP against the real API |
 | `npm start` | Start the stdio server |
 | `npm run start:http` | Start the Streamable HTTP server (needs `JEV_HTTP_TOKEN`) |
+| `scripts\start-http-server.cmd`, `scripts\stop-http-server.cmd` | Windows: double-click to start the HTTP server in a window, or stop it |
 
 GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs
 `typecheck`, `test` and `build` on Node 20 and 22 for every push to `main` and every

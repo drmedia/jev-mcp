@@ -23,6 +23,10 @@ Phase 10 defined in AGENTS.md.
 - `JEV_HTTP_TOKEN` and `PORT` (default 8098), read only by the HTTP entry point.
 - Verified end to end over HTTP with Claude Code 2.1.289, codex-cli 0.160.0 and
   VS Code Copilot agent mode (VS Code 1.139.1).
+- Windows scripts `scripts\start-http-server.cmd` (runs the HTTP server in its own
+  window, building first if needed, and refuses a second copy) and
+  `scripts\stop-http-server.cmd` (stops it, only if port 8098 belongs to `node`).
+  `.gitattributes` keeps `*.cmd` files in CRLF.
 
 ### Changed
 
