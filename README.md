@@ -36,6 +36,7 @@ npm run build
 | `OPENROUTER_BASE_URL` | no | `https://openrouter.ai/api` (API root, without `/v1`) |
 | `JEV_MODEL` | no | `jev-latest` |
 | `JEV_MAX_RETRIES` | no | `2` (0 to 10; 0 disables retries) |
+| `JEV_IMAGE_DIRS` | no | unset: image `path` disabled. Absolute directories, separated by `;` on Windows and `:` elsewhere |
 
 The stdio server loads `.env` from the package root when present. Variables already
 set by the MCP client or shell take precedence.
@@ -57,6 +58,43 @@ accepts at most 64 questions per request, and Jev's context is 32k tokens instea
 
 Models differ in how confident they are. Clef reported lower `confidence` than Jev
 for the same questions in testing, so set thresholds per model.
+
+## Images
+
+Every question tool (`jev.evaluate`, `jev.noul`, `jev.choice`, `jev.score`) takes an
+optional `images` list, judged together with `state`. Images are not tied to any use
+case: inspection photos, site photos, screenshots and documents all go through the
+same field.
+
+```json
+{
+  "state": { "line": "B", "note": "Customer return" },
+  "instructions": "Does the part in the photo show a visible defect?",
+  "images": [
+    { "path": "D:/inspections/2026-10-07/part-0412.jpg" },
+    { "data": "data:image/png;base64,iVBORw0KGgo..." }
+  ]
+}
+```
+
+| Source | Use | Rule |
+| --- | --- | --- |
+| `path` | Agents on the same machine (Claude Code, Codex, VS Code) | Absolute path inside a `JEV_IMAGE_DIRS` directory; disabled when unset |
+| `data` | Programs that already hold the bytes | Base64 data URL |
+
+Before anything is sent, JEV Core checks that there are at most 4 images, that each
+is PNG, JPEG or WebP (from the bytes, not the name), and that each is at most 4 MiB
+with 8 MiB in total. Image parts placed inside `state` are rejected.
+
+Only image-capable models receive images: today `cloudflare/clef` and
+`cloudflare/clef-flash` with `JEV_PROVIDER=openrouter`. Requests with images to any
+other model, including Jev, fail before they are sent, because Jev answers images
+with meaningless probabilities instead of an error. Details:
+[docs/openrouter-notes.md](docs/openrouter-notes.md#images).
+
+`JEV_IMAGE_DIRS` exists because the tools are called by AI agents: content an agent
+reads could ask it to send a private file. Only files inside the listed directories
+(resolved through symbolic links) can be read.
 
 ## Clients
 

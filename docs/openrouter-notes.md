@@ -74,6 +74,51 @@ on 2026-10-07 and can change.
   `Missing Authentication header`; no header returns
   `No cookie auth credentials found`. Both map to `authentication`.
 
+## Images
+
+Sources: OpenRouter's image guide
+(https://openrouter.ai/docs/guides/overview/multimodal/image-understanding.md),
+the `Model` schema in the models API reference, Cloudflare's Clef input schema
+(https://developers.cloudflare.com/workers-ai/models/clef-flash/schema-input.json),
+and live calls pinned by `tests/contract/openrouter.contract.test.ts`.
+
+**Which models accept images:** the models API documents
+`architecture.input_modalities` as required. `cloudflare/clef` and
+`cloudflare/clef-flash` list `text, image`; `typesafe/jev-1.13` lists `text`.
+The provider rejects images before sending unless the requested model ID is listed
+with `image`. Aliases such as `jev-latest` are not listed and are rejected too.
+
+**Why the guard is essential:** sending an image to `typesafe/jev-1.13` returns
+HTTP 200 with meaningless probabilities (a red square was answered
+`no_image 0.37, red 0.33`). Nothing in the response shows the image was not read.
+
+**Placement (not in the System One reference):** OpenRouter rejects Cloudflare's
+top-level `images` field with 400:
+"Top-level `images` is not supported. Put each image in the `state` array as
+`{"type": "image_url", "image_url": {"url": "data:image/png;base64,..."}}`."
+The part format matches OpenRouter's image guide for chat. Images are placed
+first, followed by the state (or the elements of an array state). Order made no
+difference in testing. An object state next to images is read correctly.
+Image parts nested inside objects are not read as images, so JEV Core rejects
+image parts anywhere in `state`.
+
+**Limits:**
+
+| Limit | Source |
+| --- | --- |
+| PNG, JPEG, WebP only | OpenRouter image guide; Clef schema |
+| At most 4 images | Clef schema; live 400 "Clef accepts at most 4 images, got 5" |
+| 4 MiB each, 8 MiB total, 16 megapixels each, 13 MiB body | Clef schema |
+| No remote URLs | Clef schema; live 400 "Clef accepts only embedded base64 ... data URL images" |
+
+JEV Core checks the count, formats (from the bytes) and byte sizes. The 16
+megapixel limit is not checked locally; OpenRouter's error is passed through.
+OpenRouter's guide allows remote URLs in general, but Clef does not, so this server
+accepts only `data` and allowed local `path` sources.
+
+**Video:** Clef's model card mentions video, but neither OpenRouter's System One
+reference nor Cloudflare's Clef schema documents a video input. Not supported.
+
 ## Error mapping
 
 | Status | Kind | Retried |

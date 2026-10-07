@@ -5,6 +5,35 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). Before 1.0.0, minor versions may
 include breaking changes.
 
+## [0.3.0] - 2026-10-07
+
+Completes Phase 7 defined in [AGENTS.md](AGENTS.md).
+
+### Added
+
+- Optional `images` on every question tool (`jev.evaluate`, `jev.noul`,
+  `jev.choice`, `jev.score`), from base64 data URLs (`data`) or local files
+  (`path`). General-purpose: not tied to any use case.
+- `JEV_IMAGE_DIRS`: image paths are read only inside these directories, resolved
+  through symbolic links; unset disables image paths.
+- Validation before any provider call: at most 4 images, PNG/JPEG/WebP detected from
+  the bytes, 4 MiB each and 8 MiB in total.
+- OpenRouter sends images to image-capable models (`cloudflare/clef`,
+  `cloudflare/clef-flash`) as image parts in `state`, verified against the live API.
+
+### Security
+
+- Requests with images are rejected before sending unless OpenRouter lists the model
+  with an `image` input modality. Jev answers images with HTTP 200 and meaningless
+  probabilities, so it must never receive one. The TypeSafe provider rejects images.
+- Image parts placed inside `state` are rejected, so images cannot bypass validation
+  and the model capability check.
+
+### Changed
+
+- OpenRouter model discovery follows the documented `Model` schema: `description` is
+  optional (the model name is used instead) and `input_modalities` is required.
+
 ## [0.2.0] - 2026-10-07
 
 Completes Phase 6 defined in [AGENTS.md](AGENTS.md).
@@ -57,5 +86,6 @@ First release. Completes MVP phases 1-5 defined in [AGENTS.md](AGENTS.md).
   [docs/typesafe-api-notes.md](docs/typesafe-api-notes.md).
 - GitHub Actions CI: typecheck, unit tests and build on Node 20 and 22.
 
+[0.3.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.3.0
 [0.2.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.2.0
 [0.1.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.1.0
