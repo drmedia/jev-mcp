@@ -11,10 +11,42 @@ function truncate(text: string): string {
 }
 
 /**
+ * Errors relayed from the model's own API arrive as `"HTTP <status>: <json body>"`.
+ * Observed bodies: TypeSafe `{ "detail": { "error_type": "max_tokens_exceeded" } }` and
+ * Cloudflare `{ "errors": [{ "message": "AiError: ..." }] }`. Returns the useful part.
+ */
+function upstreamMessage(raw: string): string | undefined {
+  const match = /^HTTP \d{3}: (\{.*\})$/s.exec(raw.trim());
+  if (!match) return undefined;
+  let body: unknown;
+  try {
+    body = JSON.parse(match[1]!);
+  } catch {
+    return undefined;
+  }
+  if (!isRecord(body)) return undefined;
+  if (isRecord(body.detail)) {
+    const { message, error_type: errorType } = body.detail;
+    if (typeof message === "string") return message;
+    if (typeof errorType === "string") return errorType;
+  }
+  if (Array.isArray(body.errors)) {
+    const messages = body.errors
+      .filter(isRecord)
+      .map((error) => error.message)
+      .filter((message): message is string => typeof message === "string");
+    if (messages.length > 0) return messages.join("; ");
+  }
+  return undefined;
+}
+
+/**
  * OpenRouter validation errors carry a JSON-encoded list of issues in `message`,
  * e.g. `[{"path":["questions"],"message":"Invalid input: ..."}]`. Flatten them.
  */
 function formatMessage(raw: string): string {
+  const upstream = upstreamMessage(raw);
+  if (upstream !== undefined) return truncate(upstream);
   try {
     const issues: unknown = JSON.parse(raw);
     if (Array.isArray(issues)) {
@@ -55,7 +87,9 @@ export function parseOpenRouterErrorBody(text: string): ParsedErrorBody {
   const code = typeof error.code === "number" || typeof error.code === "string" ? error.code : undefined;
   return {
     message,
-    providerCode: undefined,
+    // Observed for openai/gpt-6-luna-decisions on 2026-10-07: HTTP 502 with
+    // `OpenAI refused to answer question "<id>"`; the whole request fails.
+    providerCode: message !== undefined && /\brefused to answer question\b/.test(message) ? "refusal" : undefined,
     details: { error: { ...(code !== undefined && { code }), ...(message !== undefined && { message }) } },
   };
 }

@@ -32,9 +32,11 @@ export function parseErrorBody(text: string): ParsedErrorBody {
 
   const detail = isRecord(body) ? body.detail : undefined;
   if (isRecord(detail)) {
+    const errorType = typeof detail.error_type === "string" ? detail.error_type : undefined;
     return {
-      message: typeof detail.message === "string" ? detail.message : undefined,
-      providerCode: typeof detail.error_type === "string" ? detail.error_type : undefined,
+      // Some errors carry only the type, e.g. `{ "detail": { "error_type": "max_tokens_exceeded" } }`.
+      message: typeof detail.message === "string" ? detail.message : errorType,
+      providerCode: errorType,
       details: body,
     };
   }

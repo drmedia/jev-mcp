@@ -20,7 +20,9 @@ import { toolError, toolSuccess } from "./tool-results.js";
 /** Question ID used when a convenience tool wraps its input in a jev.evaluate request. */
 const SINGLE_QUESTION_ID = "question";
 
-const SHARED_SINGLE_QUESTION_HELP = `\`state\` is the content to judge (a string, or a JSON object/array). \`instructions\` must state the full question; refer to parts of structured state with backticked paths such as \`ticket.messages[0].text\`. \`model\` is optional. To ask several questions about the same state, use jev.evaluate instead: it answers them in one request.`;
+const IMAGES_HELP = `\`images\` (optional, up to 4 PNG, JPEG or WebP, 4 MiB each) are judged together with \`state\`; each is either { "path": "<absolute path>" } for a local file inside a directory the server allows (JEV_IMAGE_DIRS), or { "data": "data:image/png;base64,..." }. Only image-capable models accept images (for example cloudflare/clef or cloudflare/clef-flash through OpenRouter); other models reject them. Never put images inside \`state\`.`;
+
+const SHARED_SINGLE_QUESTION_HELP = `\`state\` is the content to judge (a string, or a JSON object/array). \`instructions\` must state the full question; refer to parts of structured state with backticked paths such as \`ticket.messages[0].text\`. \`model\` is optional. ${IMAGES_HELP} To ask several questions about the same state, use jev.evaluate instead: it answers them in one request.`;
 
 const NOUL_DESCRIPTION = `Ask TypeSafe Jev one yes/no question about some state. Returns \`answer.noul\`, the probability of yes (0..1); 0.5 means equally likely, not "medium". Optional \`criteria\` { true, false } describes what yes and no mean.
 
@@ -39,6 +41,7 @@ interface SingleQuestionInput {
   model?: string | undefined;
   instructions: unknown;
   criteria?: unknown;
+  images?: unknown;
 }
 
 /** Runs one question through the same JevCore.evaluate path as jev.evaluate. */
@@ -48,11 +51,12 @@ async function evaluateSingleQuestion(
   input: SingleQuestionInput,
   options: JevRequestOptions,
 ): Promise<Record<string, unknown>> {
-  const { state, model, instructions, criteria } = input;
+  const { state, model, instructions, criteria, images } = input;
   const result = await core.evaluate(
     {
       state,
       ...(model !== undefined && { model }),
+      ...(images !== undefined && { images }),
       questions: {
         [SINGLE_QUESTION_ID]: {
           type,
@@ -109,7 +113,9 @@ Question types:
 - choice: pick one option. \`criteria\` maps option names to descriptions (or null), up to 255 options. Returns \`choice\`, \`probabilities\` per option and \`confidence\`.
 - score: rate along ordered levels. \`criteria\` is an array of 2-10 level descriptions, lowest first. Returns \`score\` (a probability-weighted level index from 0, may fall between levels), \`legend\`, \`probabilities\` and \`confidence\`.
 
-Question IDs are not shown to the model, so \`instructions\` must state the full question. Refer to parts of structured state with backticked paths such as \`ticket.messages[0].text\`. Ask one narrow judgment per question. \`model\` is optional and defaults to the server's configured model.`;
+Question IDs are not shown to the model, so \`instructions\` must state the full question. Refer to parts of structured state with backticked paths such as \`ticket.messages[0].text\`. Ask one narrow judgment per question. \`model\` is optional and defaults to the server's configured model.
+
+${IMAGES_HELP}`;
 
 export function registerJevTools(server: McpServer, core: JevCore): void {
   server.registerTool(

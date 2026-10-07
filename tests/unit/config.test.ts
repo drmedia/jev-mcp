@@ -1,5 +1,7 @@
+import { delimiter, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_JEV_MAX_INPUT_CHARS,
   DEFAULT_JEV_MAX_RETRIES,
   DEFAULT_JEV_MODEL,
   DEFAULT_OPENROUTER_BASE_URL,
@@ -25,6 +27,46 @@ describe("loadConfig", () => {
       provider: { name: "typesafe", apiKey: "test-key", baseUrl: DEFAULT_TYPESAFE_BASE_URL },
       jevModel: DEFAULT_JEV_MODEL,
       jevMaxRetries: DEFAULT_JEV_MAX_RETRIES,
+      imageDirectories: [],
+      maxInputChars: DEFAULT_JEV_MAX_INPUT_CHARS,
+    });
+  });
+
+  describe("JEV_MAX_INPUT_CHARS", () => {
+    it("defaults to 256,000 characters and accepts 0 to disable", () => {
+      expect(DEFAULT_JEV_MAX_INPUT_CHARS).toBe(256_000);
+      expect(loadConfig({ TYPESAFE_API_KEY: "k", JEV_MAX_INPUT_CHARS: "100000" }).maxInputChars).toBe(100_000);
+      expect(loadConfig({ TYPESAFE_API_KEY: "k", JEV_MAX_INPUT_CHARS: "0" }).maxInputChars).toBe(0);
+    });
+
+    it.each(["-1", "1e6", "lots"])("rejects %j", (value) => {
+      expect(configError({ TYPESAFE_API_KEY: "k", JEV_MAX_INPUT_CHARS: value }).message).toMatch(
+        /JEV_MAX_INPUT_CHARS must be a whole number/,
+      );
+    });
+  });
+
+  describe("JEV_IMAGE_DIRS", () => {
+    const dirA = resolve("/images/a");
+    const dirB = resolve("/images/b");
+
+    it("splits on the platform path delimiter and drops empty entries", () => {
+      const config = loadConfig({
+        TYPESAFE_API_KEY: "k",
+        JEV_IMAGE_DIRS: ` ${dirA}${delimiter}${delimiter}${dirB} `,
+      });
+      expect(config.imageDirectories).toEqual([dirA, dirB]);
+    });
+
+    it("is empty (image paths disabled) when unset or blank", () => {
+      expect(loadConfig({ TYPESAFE_API_KEY: "k" }).imageDirectories).toEqual([]);
+      expect(loadConfig({ TYPESAFE_API_KEY: "k", JEV_IMAGE_DIRS: "  " }).imageDirectories).toEqual([]);
+    });
+
+    it("rejects relative directories", () => {
+      expect(configError({ TYPESAFE_API_KEY: "k", JEV_IMAGE_DIRS: "photos" }).message).toMatch(
+        /JEV_IMAGE_DIRS entries must be absolute paths/,
+      );
     });
   });
 

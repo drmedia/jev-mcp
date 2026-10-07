@@ -5,6 +5,54 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). Before 1.0.0, minor versions may
 include breaking changes.
 
+## [Unreleased]
+
+Phase 7 defined in [AGENTS.md](AGENTS.md).
+
+### Added
+
+- Optional `images` on every question tool (`jev.evaluate`, `jev.noul`,
+  `jev.choice`, `jev.score`), from base64 data URLs (`data`) or local files
+  (`path`). General-purpose: not tied to any use case.
+- `JEV_IMAGE_DIRS`: image paths are read only inside these directories, resolved
+  through symbolic links; unset disables image paths.
+- Validation before any provider call: at most 4 images, PNG/JPEG/WebP detected from
+  the bytes, 4 MiB each and 8 MiB in total.
+- OpenRouter sends images to image-capable models (`cloudflare/clef`,
+  `cloudflare/clef-flash`) as image parts in `state`, verified against the live API.
+- Clef image requests above 384,000 bytes of images in total are rejected before
+  sending: OpenRouter returns 413 above about that size for Clef (measured), far below
+  Clef's documented 4 MiB per image. Other models are not held to this limit.
+- `openai/gpt-6-luna-decisions` (OpenAI's Decisions API, public beta) is supported
+  through OpenRouter and verified live for text, images and refusals.
+- `refused` error kind: a model refusal (OpenRouter HTTP 502 "refused to answer
+  question") is reported with the question and not retried.
+- docs/openrouter-notes.md records the measured image limit, a small real-photo
+  check, request-level differences between Jev and Clef, and that rejected requests
+  were not billed.
+- `JEV_MAX_INPUT_CHARS` (default 256,000): text input above the limit is rejected
+  before sending, because Clef accepted and billed inputs far beyond its documented
+  context.
+- Clef's request rules (question IDs of letters, digits, `_`, `.`, `-`; 2 to 255
+  choice options; at most 64 questions) are checked before sending, with a message
+  naming the questions, instead of OpenRouter's nested 422.
+
+### Security
+
+- Requests with images are rejected before sending unless OpenRouter lists the model
+  with an `image` input modality. Jev answers images with HTTP 200 and meaningless
+  probabilities, so it must never receive one. The TypeSafe provider rejects images.
+- Image parts placed inside `state` are rejected, so images cannot bypass validation
+  and the model capability check.
+
+### Changed
+
+- HTTP 413 maps to `invalid_request` instead of `provider_error`.
+- Error messages show the reason when the provider sends only an error type (TypeSafe
+  `max_tokens_exceeded`) or relays an upstream error inside OpenRouter's message.
+- OpenRouter model discovery follows the documented `Model` schema: `description` is
+  optional (the model name is used instead) and `input_modalities` is required.
+
 ## [0.2.0] - 2026-10-07
 
 Completes Phase 6 defined in [AGENTS.md](AGENTS.md).
@@ -57,5 +105,6 @@ First release. Completes MVP phases 1-5 defined in [AGENTS.md](AGENTS.md).
   [docs/typesafe-api-notes.md](docs/typesafe-api-notes.md).
 - GitHub Actions CI: typecheck, unit tests and build on Node 20 and 22.
 
+[Unreleased]: https://github.com/drmedia/jev-mcp/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.2.0
 [0.1.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.1.0

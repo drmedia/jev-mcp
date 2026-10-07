@@ -334,3 +334,37 @@ describe("TypeSafeProvider.evaluate", () => {
     expect(error.message).toContain("body.questions.frustration.score.criteria");
   });
 });
+
+describe("TypeSafeProvider.evaluate with images", () => {
+  it("refuses images without calling the API, because TypeSafe models are text only", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    const provider = providerWith(fetchMock);
+
+    const error = await captureError(
+      provider.evaluate({
+        state: "x",
+        model: "jev-latest",
+        questions: { q: { type: "noul", instructions: "Is it red?" } },
+        images: [{ mediaType: "image/png", base64: "iVBORw0KGgo=", byteLength: 8 }],
+      }),
+    );
+
+    expect(error.kind).toBe("invalid_input");
+    expect(error.message).toMatch(/TypeSafe models accept text only/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});
+
+describe("TypeSafe error bodies with only an error type", () => {
+  it("uses the error type as the message, e.g. max_tokens_exceeded", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse({ detail: { error_type: "max_tokens_exceeded" } }, { status: 400 }));
+
+    const error = await captureError(providerWith(fetchMock).models());
+
+    expect(error.kind).toBe("invalid_request");
+    expect(error.providerCode).toBe("max_tokens_exceeded");
+    expect(error.message).toBe("TypeSafe API returned HTTP 400: max_tokens_exceeded");
+  });
+});

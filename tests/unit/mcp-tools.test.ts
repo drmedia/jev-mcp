@@ -6,6 +6,7 @@ import { JevError } from "../../src/core/errors.js";
 import { JevCore } from "../../src/core/jev-core.js";
 import type { JevEvaluateResult } from "../../src/core/provider.js";
 import { createJevMcpServer } from "../../src/mcp/server.js";
+import { pngDataUrl } from "../support/images.js";
 import { MockJevProvider } from "../support/mock-provider.js";
 
 const evaluateArgs = {
@@ -294,6 +295,55 @@ describe("MCP tools", () => {
       })) as CallToolResult;
 
       expect(errorBody(result).kind).toBe("invalid_response");
+    });
+  });
+
+  describe("images", () => {
+    it("is an optional input of every question tool", async () => {
+      const { tools } = await (await connect(new MockJevProvider())).listTools();
+
+      for (const name of ["jev.evaluate", "jev.noul", "jev.choice", "jev.score"]) {
+        const tool = tools.find((candidate) => candidate.name === name)!;
+        expect(tool.inputSchema.properties).toHaveProperty("images");
+        expect(tool.inputSchema.required).not.toContain("images");
+      }
+    });
+
+    it("is forwarded by convenience tools to the same evaluation path", async () => {
+      const provider = new MockJevProvider({
+        evaluate: (request) => ({
+          model: "cloudflare/clef-flash",
+          answers: Object.fromEntries(
+            Object.keys(request.questions).map((id) => [id, { type: "noul" as const, noul: 0.98 }]),
+          ),
+          usage: { inputTokens: 300, outputTokens: 0 },
+        }),
+      });
+      const mcp = await connect(provider);
+
+      const result = (await mcp.callTool({
+        name: "jev.noul",
+        arguments: {
+          state: "Inspection photo",
+          instructions: "Is the part red?",
+          images: [{ data: pngDataUrl([220, 20, 20]) }],
+        },
+      })) as CallToolResult;
+
+      expect(result.isError).toBeFalsy();
+      expect(provider.evaluateCalls[0]?.images?.[0]?.mediaType).toBe("image/png");
+    });
+
+    it("reports a disabled image path as a tool error", async () => {
+      const mcp = await connect(new MockJevProvider({ evaluate: () => evaluateResult }));
+
+      const result = (await mcp.callTool({
+        name: "jev.evaluate",
+        arguments: { ...evaluateArgs, images: [{ path: "/photos/a.png" }] },
+      })) as CallToolResult;
+
+      expect(errorBody(result).kind).toBe("invalid_input");
+      expect(errorBody(result).message).toMatch(/image paths are disabled on this server/);
     });
   });
 

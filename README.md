@@ -36,6 +36,24 @@ npm run build
 | `OPENROUTER_BASE_URL` | no | `https://openrouter.ai/api` (API root, without `/v1`) |
 | `JEV_MODEL` | no | `jev-latest` |
 | `JEV_MAX_RETRIES` | no | `2` (0 to 10; 0 disables retries) |
+| `JEV_IMAGE_DIRS` | no | unset: image `path` disabled. Absolute directories, separated by `;` on Windows and `:` elsewhere |
+| `JEV_MAX_INPUT_CHARS` | no | `256000` characters of `state` plus `questions` per request; `0` disables |
+
+## Checks before sending
+
+Requests the server can tell will fail, or will be billed for nothing useful, are
+stopped before they reach the provider:
+
+| Check | Why |
+| --- | --- |
+| Text input over `JEV_MAX_INPUT_CHARS` | Clef accepted and billed inputs far beyond its documented context (118k tokens). 256,000 characters is about 64k tokens of English; text in Korean and similar scripts uses more tokens per character, so lower the limit if most input is such text |
+| Images to a model that cannot read them | Jev answers images with confident wrong results and bills them as text |
+| Clef rules: question IDs (letters, digits, `_` `.` `-`), 2 to 255 choice options, at most 64 questions, about 384 KB of images per request | Clef returns 422 or 413 otherwise; the local message names the problem |
+| Image count, format and size limits | See [Images](#images) |
+
+Requests the provider rejects were not billed in testing, so these checks mainly
+prevent wasted spending on accepted requests and give clearer errors. Details:
+[docs/openrouter-notes.md](docs/openrouter-notes.md#billing-of-rejected-requests).
 
 The stdio server loads `.env` from the package root when present. Variables already
 set by the MCP client or shell take precedence.
@@ -48,15 +66,66 @@ own, and a missing key for the selected provider is a configuration error.
 | `JEV_PROVIDER` | Models (`JEV_MODEL`) | Cost in results |
 | --- | --- | --- |
 | `typesafe` (default) | `jev-latest`, `jev-preview`, `jev-1.13.0` | not reported |
-| `openrouter` | `cloudflare/clef`, `cloudflare/clef-flash`, `typesafe/jev-1.13`, `jev-latest` | `usage.costUsd` |
+| `openrouter` | `cloudflare/clef`, `cloudflare/clef-flash`, `typesafe/jev-1.13`, `jev-latest`, `openai/gpt-6-luna-decisions` (public beta) | `usage.costUsd` |
 
 On OpenRouter, Clef needs its full ID (`cloudflare/clef-flash`, not `clef-flash`),
 accepts at most 64 questions per request, and Jev's context is 32k tokens instead of
 64k. `jev.models` lists the decision models OpenRouter exposes. Details:
 [docs/openrouter-notes.md](docs/openrouter-notes.md).
 
-Models differ in how confident they are. Clef reported lower `confidence` than Jev
-for the same questions in testing, so set thresholds per model.
+`openai/gpt-6-luna-decisions` is OpenAI's Decisions API, in public beta since
+2026-10-06 ("we expect to GA in the coming weeks"), so its behavior may change. It
+reads images and accepts long inputs, but it can refuse a question on content-policy
+grounds, which fails the whole request; the server reports that as `refused` and does
+not retry. Do not rely on it for production decisions before general availability.
+
+Models differ in how confident they are. In testing Clef reported lower `confidence`
+than Jev, and GPT-6 Luna mostly returned probabilities of 0 or 1, so set thresholds
+per model from labeled examples.
+
+## Images
+
+Every question tool (`jev.evaluate`, `jev.noul`, `jev.choice`, `jev.score`) takes an
+optional `images` list, judged together with `state`. Images are not tied to any use
+case: inspection photos, site photos, screenshots and documents all go through the
+same field.
+
+```json
+{
+  "state": { "line": "B", "note": "Customer return" },
+  "instructions": "Does the part in the photo show a visible defect?",
+  "images": [
+    { "path": "D:/inspections/2026-10-07/part-0412.jpg" },
+    { "data": "data:image/png;base64,iVBORw0KGgo..." }
+  ]
+}
+```
+
+| Source | Use | Rule |
+| --- | --- | --- |
+| `path` | Agents on the same machine (Claude Code, Codex, VS Code) | Absolute path inside a `JEV_IMAGE_DIRS` directory; disabled when unset |
+| `data` | Programs that already hold the bytes | Base64 data URL |
+
+Before anything is sent, JEV Core checks that there are at most 4 images, that each
+is PNG, JPEG or WebP (from the bytes, not the name), and that each is at most 4 MiB
+with 8 MiB in total. Image parts placed inside `state` are rejected.
+
+For Clef through OpenRouter the practical limit is much lower than Clef documents:
+requests with more than about 384 KB of images in total fail there (measured, not
+documented), so they are rejected before sending. Downscale or recompress photos
+first; a 1024-pixel JPEG is usually well under the limit. GPT-6 Luna accepted a
+624 KB photo.
+
+Only image-capable models receive images: today `cloudflare/clef`,
+`cloudflare/clef-flash` and `openai/gpt-6-luna-decisions` with
+`JEV_PROVIDER=openrouter`. Requests with images to any
+other model, including Jev, fail before they are sent, because Jev answers images
+with meaningless probabilities instead of an error. Details:
+[docs/openrouter-notes.md](docs/openrouter-notes.md#images).
+
+`JEV_IMAGE_DIRS` exists because the tools are called by AI agents: content an agent
+reads could ask it to send a private file. Only files inside the listed directories
+(resolved through symbolic links) can be read.
 
 ## Clients
 

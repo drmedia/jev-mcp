@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { loadConfig } from "../config/config.js";
 import { JevCore } from "../core/jev-core.js";
+import { createDirectoryImageLoader } from "../images/directory-image-loader.js";
 import { createJevMcpServer } from "../mcp/server.js";
 import { logError, logWarning } from "../observability/logger.js";
 import { createProvider } from "../providers/create-provider.js";
@@ -26,7 +27,16 @@ async function main(): Promise<void> {
         ),
     },
   );
-  const core = new JevCore({ provider, defaultModel: config.jevModel });
+  const loadImageFile =
+    config.imageDirectories.length > 0
+      ? await createDirectoryImageLoader(config.imageDirectories)
+      : undefined;
+  const core = new JevCore({
+    provider,
+    defaultModel: config.jevModel,
+    maxInputChars: config.maxInputChars,
+    ...(loadImageFile !== undefined && { loadImageFile }),
+  });
   const server = createJevMcpServer(core);
   await server.connect(new StdioServerTransport());
 }

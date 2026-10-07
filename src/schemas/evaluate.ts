@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_IMAGES } from "../images/image-data.js";
 
 // Limits follow https://docs.typesafe.ai/api.md. The OpenAPI schema is looser
 // (see docs/typesafe-api-notes.md); we validate against the documented contract.
@@ -57,12 +58,34 @@ export const jevQuestionSchema = z.discriminatedUnion("type", [
   scoreQuestionSchema,
 ]);
 
+/** Where an image comes from. JEV Core validates the bytes before any provider sees them. */
+export const imageSourceSchema = z.union([
+  z.strictObject({
+    data: z
+      .string()
+      .min(1)
+      .describe("A base64 data URL: data:image/png;base64,..., image/jpeg or image/webp"),
+  }),
+  z.strictObject({
+    path: z
+      .string()
+      .min(1)
+      .describe("Absolute path of a local PNG, JPEG or WebP file inside a JEV_IMAGE_DIRS directory"),
+  }),
+]);
+
+export const imagesSchema = z
+  .array(imageSourceSchema)
+  .min(1, "must contain at least one image when present")
+  .max(MAX_IMAGES, `must contain at most ${MAX_IMAGES} images`);
+
 export const jevEvaluateInputSchema = z.strictObject({
   state: descriptionSchema,
   model: modelSchema.optional(),
   questions: z
     .record(z.string().min(1, "question ids must not be empty"), jevQuestionSchema)
     .refine((questions) => Object.keys(questions).length >= 1, "must contain at least one question"),
+  images: imagesSchema.optional(),
 });
 
 export type JevDescription = z.infer<typeof descriptionSchema>;
@@ -71,3 +94,4 @@ export type JevChoiceQuestion = z.infer<typeof choiceQuestionSchema>;
 export type JevScoreQuestion = z.infer<typeof scoreQuestionSchema>;
 export type JevQuestion = z.infer<typeof jevQuestionSchema>;
 export type JevEvaluateInput = z.infer<typeof jevEvaluateInputSchema>;
+export type JevImageSource = z.infer<typeof imageSourceSchema>;

@@ -1,9 +1,21 @@
 import type { z } from "zod";
-import { jevEvaluateInputSchema, type JevEvaluateInput } from "../schemas/evaluate.js";
+import type { ImageFileLoader } from "../images/directory-image-loader.js";
+import {
+  checkImageSet,
+  containsImagePart,
+  imageFromBytes,
+  imageFromDataUrl,
+} from "../images/image-data.js";
+import {
+  jevEvaluateInputSchema,
+  type JevEvaluateInput,
+  type JevImageSource,
+} from "../schemas/evaluate.js";
 import { JevError } from "./errors.js";
 import type {
   JevEvaluateRequest,
   JevEvaluateResult,
+  JevImage,
   JevModelList,
   JevProvider,
   JevRequestOptions,
@@ -13,6 +25,14 @@ export interface JevCoreOptions {
   provider: JevProvider;
   /** Used when an evaluate input does not name a model. */
   defaultModel: string;
+  /** Reads `images[].path` entries. Without it, image paths are rejected. */
+  loadImageFile?: ImageFileLoader;
+  /**
+   * Maximum characters of text input (`state` and `questions` as JSON) per request.
+   * Some models accept and bill inputs beyond their documented context, so oversized
+   * requests are stopped before they are sent. Omitted or 0 disables the check.
+   */
+  maxInputChars?: number;
 }
 
 function formatIssues(issues: readonly z.core.$ZodIssue[]): string {
@@ -87,10 +107,14 @@ export function findAnswerProblems(
 export class JevCore {
   readonly #provider: JevProvider;
   readonly #defaultModel: string;
+  readonly #loadImageFile: ImageFileLoader | undefined;
+  readonly #maxInputChars: number;
 
   constructor(options: JevCoreOptions) {
     this.#provider = options.provider;
     this.#defaultModel = options.defaultModel;
+    this.#loadImageFile = options.loadImageFile;
+    this.#maxInputChars = options.maxInputChars ?? 0;
   }
 
   models(options?: JevRequestOptions): Promise<JevModelList> {
@@ -106,7 +130,24 @@ export class JevCore {
       });
     }
 
-    const request = this.#toRequest(parsed.data);
+    if (this.#maxInputChars > 0) {
+      const size = JSON.stringify({ state: parsed.data.state, questions: parsed.data.questions }).length;
+      if (size > this.#maxInputChars) {
+        throw new JevError(
+          "invalid_input",
+          `Invalid evaluate input: text input is ${size} characters; the limit is ${this.#maxInputChars} (JEV_MAX_INPUT_CHARS). Shorten state or raise the limit.`,
+        );
+      }
+    }
+    if (containsImagePart(parsed.data.state)) {
+      throw new JevError(
+        "invalid_input",
+        "Invalid evaluate input: state contains an image part; pass images in the images field instead",
+      );
+    }
+    const images = parsed.data.images ? await this.#resolveImages(parsed.data.images) : undefined;
+
+    const request = this.#toRequest(parsed.data, images);
     const result = await this.#provider.evaluate(request, options);
 
     const problems = findAnswerProblems(request, result);
@@ -120,11 +161,32 @@ export class JevCore {
     return result;
   }
 
-  #toRequest(input: JevEvaluateInput): JevEvaluateRequest {
+  async #resolveImages(sources: readonly JevImageSource[]): Promise<JevImage[]> {
+    const images: JevImage[] = [];
+    for (const [index, source] of sources.entries()) {
+      const label = `images[${index}]`;
+      if ("data" in source) {
+        images.push(imageFromDataUrl(source.data, label));
+        continue;
+      }
+      if (this.#loadImageFile === undefined) {
+        throw new JevError(
+          "invalid_input",
+          `${label}: image paths are disabled on this server; set JEV_IMAGE_DIRS or pass data instead`,
+        );
+      }
+      images.push(imageFromBytes(await this.#loadImageFile(source.path), label));
+    }
+    checkImageSet(images);
+    return images;
+  }
+
+  #toRequest(input: JevEvaluateInput, images: JevImage[] | undefined): JevEvaluateRequest {
     return {
       state: input.state,
       model: input.model ?? this.#defaultModel,
       questions: input.questions,
+      ...(images !== undefined && { images }),
     };
   }
 }

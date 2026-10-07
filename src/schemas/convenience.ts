@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   choiceCriteriaSchema,
   descriptionSchema,
+  imagesSchema,
   modelSchema,
   noulCriteriaSchema,
   scoreCriteriaSchema,
@@ -14,6 +15,7 @@ const common = {
   state: descriptionSchema,
   model: modelSchema.optional(),
   instructions: descriptionSchema,
+  images: imagesSchema.optional(),
 };
 
 export const jevNoulInputSchema = z.strictObject({

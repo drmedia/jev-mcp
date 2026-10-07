@@ -57,6 +57,14 @@ export class TypeSafeProvider implements JevProvider {
     request: JevEvaluateRequest,
     options: JevRequestOptions = {},
   ): Promise<JevEvaluateResult> {
+    // TypeSafe documents Jev input as "Text only ... No image, audio, or video input"
+    // (https://docs.typesafe.ai/models.md). Never send an image to a text-only model.
+    if (request.images !== undefined) {
+      throw new JevError(
+        "invalid_input",
+        "TypeSafe models accept text only; for images use JEV_PROVIDER=openrouter with an image-capable model such as cloudflare/clef-flash",
+      );
+    }
     const body = await this.#client.request("POST", "/v1/systemone", toSystemOnePayload(request), options);
     return parseSystemOneResponse(body, "TypeSafe");
   }
