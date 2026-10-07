@@ -24,7 +24,7 @@ Paths below use `/absolute/path/to/jev-mcp`; on Windows use a path such as
 | Claude Code | stdio | Verified end to end (2026-10-07, Claude Code 2.1.289) |
 | Codex CLI | stdio | Verified end to end (2026-10-07, codex-cli 0.160.0) |
 | Claude Code in VS Code (extension) | stdio | Verified end to end (2026-10-07); uses `.mcp.json` |
-| VS Code Copilot agent mode | stdio | Workspace config provided, not yet verified |
+| VS Code Copilot agent mode | stdio | Verified end to end (2026-10-07, VS Code 1.139); uses `.vscode/mcp.json` |
 | Claude Desktop | stdio | Verified end to end (2026-10-07, Windows) |
 | ChatGPT | stdio via Secure MCP Tunnel | Verified end to end (2026-10-07, tunnel-client 0.0.16) |
 
@@ -77,6 +77,16 @@ repository folder, then start the `jev` server from the MCP view or the
 
 For other workspaces, add the same entry to that workspace's `.vscode/mcp.json` with
 an absolute path in `args`.
+
+VS Code may start the server as soon as the folder opens and keeps it running. After
+`npm run build`, run `MCP: List Servers`, select `jev`, then **Restart Server** so
+Copilot uses the new build.
+
+## After rebuilding
+
+Every client keeps its own server process. After `npm run build`, restart the server
+in each client you use: restart Claude Code or Claude Desktop, restart the server from
+`MCP: List Servers` in VS Code, and stop and start `tunnel-client run` for ChatGPT.
 
 ## Claude Desktop
 
