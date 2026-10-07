@@ -173,8 +173,23 @@ OpenRouter) and to Clef (OpenRouter).
 
 Clef's model page says long text state "is truncated to fit the model's token
 limit". No truncation was observed in the test above; treat the behavior as
-undocumented. These differences are not checked locally yet: requests that break
-Clef's rules fail with the provider's 422 message.
+undocumented.
+
+The provider checks Clef's question-ID, choice-option and question-count rules
+before sending (`src/providers/openrouter/clef-rules.ts`) and names the offending
+questions. Jev is not held to these rules.
+
+## Billing of rejected requests
+
+Measured on 2026-10-07 with `GET /api/v1/key` (`usage`, USD): three requests of about
+31k input tokens each that Clef rejected with 422 added nothing; one accepted request
+of 33,029 tokens added exactly its reported cost ($0.00297261). Usage appeared about
+90 seconds after the request. Rejected requests therefore cost nothing; money is spent
+by requests that are accepted. That is why the local checks that matter for cost are
+the ones that stop requests a model would accept anyway: images to text-only models
+(answered and billed, see Images) and oversized text, which Clef accepted and billed
+up to 118k tokens. `JEV_MAX_INPUT_CHARS` (default 256,000 characters, about 64k
+tokens of English text) stops the latter before sending.
 
 ## Error mapping
 

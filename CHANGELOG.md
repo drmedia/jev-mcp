@@ -24,7 +24,14 @@ Phase 7 defined in [AGENTS.md](AGENTS.md).
   before sending: OpenRouter returns 413 above about that size (measured), far below
   Clef's documented 4 MiB per image.
 - docs/openrouter-notes.md records the measured image limit, a small real-photo
-  check, and request-level differences between Jev and Clef.
+  check, request-level differences between Jev and Clef, and that rejected requests
+  were not billed.
+- `JEV_MAX_INPUT_CHARS` (default 256,000): text input above the limit is rejected
+  before sending, because Clef accepted and billed inputs far beyond its documented
+  context.
+- Clef's request rules (question IDs of letters, digits, `_`, `.`, `-`; 2 to 255
+  choice options; at most 64 questions) are checked before sending, with a message
+  naming the questions, instead of OpenRouter's nested 422.
 
 ### Security
 
@@ -37,6 +44,8 @@ Phase 7 defined in [AGENTS.md](AGENTS.md).
 ### Changed
 
 - HTTP 413 maps to `invalid_request` instead of `provider_error`.
+- Error messages show the reason when the provider sends only an error type (TypeSafe
+  `max_tokens_exceeded`) or relays an upstream error inside OpenRouter's message.
 - OpenRouter model discovery follows the documented `Model` schema: `description` is
   optional (the model name is used instead) and `input_modalities` is required.
 

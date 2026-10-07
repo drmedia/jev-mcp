@@ -37,6 +37,23 @@ npm run build
 | `JEV_MODEL` | no | `jev-latest` |
 | `JEV_MAX_RETRIES` | no | `2` (0 to 10; 0 disables retries) |
 | `JEV_IMAGE_DIRS` | no | unset: image `path` disabled. Absolute directories, separated by `;` on Windows and `:` elsewhere |
+| `JEV_MAX_INPUT_CHARS` | no | `256000` characters of `state` plus `questions` per request; `0` disables |
+
+## Checks before sending
+
+Requests the server can tell will fail, or will be billed for nothing useful, are
+stopped before they reach the provider:
+
+| Check | Why |
+| --- | --- |
+| Text input over `JEV_MAX_INPUT_CHARS` | Clef accepted and billed inputs far beyond its documented context (118k tokens). 256,000 characters is about 64k tokens of English; text in Korean and similar scripts uses more tokens per character, so lower the limit if most input is such text |
+| Images to a model that cannot read them | Jev answers images with confident wrong results and bills them as text |
+| Clef rules: question IDs (letters, digits, `_` `.` `-`), 2 to 255 choice options, at most 64 questions | Clef returns 422 otherwise; the local message names the questions |
+| Image count, format and size limits | See [Images](#images) |
+
+Requests the provider rejects were not billed in testing, so these checks mainly
+prevent wasted spending on accepted requests and give clearer errors. Details:
+[docs/openrouter-notes.md](docs/openrouter-notes.md#billing-of-rejected-requests).
 
 The stdio server loads `.env` from the package root when present. Variables already
 set by the MCP client or shell take precedence.
