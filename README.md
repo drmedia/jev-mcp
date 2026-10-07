@@ -29,11 +29,13 @@ npm run build
 
 | Variable | Required | Default |
 | --- | --- | --- |
-| `JEV_PROVIDER` | no | `typesafe` (or `openrouter`) |
+| `JEV_PROVIDER` | no | `typesafe` (or `openrouter`, `local`) |
 | `TYPESAFE_API_KEY` | when `JEV_PROVIDER=typesafe` | — |
 | `TYPESAFE_BASE_URL` | no | `https://api.typesafe.ai` |
 | `OPENROUTER_API_KEY` | when `JEV_PROVIDER=openrouter` | — |
 | `OPENROUTER_BASE_URL` | no | `https://openrouter.ai/api` (API root, without `/v1`) |
+| `JEV_LOCAL_BASE_URL` | no | `http://127.0.0.1:8097` (server root, without `/v1`) |
+| `JEV_LOCAL_API_KEY` | no | unset: no Authorization header |
 | `JEV_MODEL` | no | `jev-latest` |
 | `JEV_MAX_RETRIES` | no | `2` (0 to 10; 0 disables retries) |
 | `JEV_IMAGE_DIRS` | no | unset: image `path` disabled. Absolute directories, separated by `;` on Windows and `:` elsewhere |
@@ -67,6 +69,11 @@ own, and a missing key for the selected provider is a configuration error.
 | --- | --- | --- |
 | `typesafe` (default) | `jev-latest`, `jev-preview`, `jev-1.13.0` | not reported |
 | `openrouter` | `cloudflare/clef`, `cloudflare/clef-flash`, `typesafe/jev-1.13`, `jev-latest`, `openai/gpt-6-luna-decisions` (public beta) | `usage.costUsd` |
+| `local` | Whatever your local System One server serves, for example `clef-flash` with llama.cpp | not reported (no per-request cost) |
+
+`JEV_PROVIDER=local` uses a server on your own machine or network: no data leaves it.
+Setup with llama.cpp and Clef Flash, and measured results:
+[docs/local-provider.md](docs/local-provider.md).
 
 On OpenRouter, Clef needs its full ID (`cloudflare/clef-flash`, not `clef-flash`),
 accepts at most 64 questions per request, and Jev's context is 32k tokens instead of
@@ -118,7 +125,9 @@ first; a 1024-pixel JPEG is usually well under the limit. GPT-6 Luna accepted a
 
 Only image-capable models receive images: today `cloudflare/clef`,
 `cloudflare/clef-flash` and `openai/gpt-6-luna-decisions` with
-`JEV_PROVIDER=openrouter`. Requests with images to any
+`JEV_PROVIDER=openrouter`, and local models the server lists with an `image` input
+(for example Clef Flash in llama.cpp with `--mmproj`, which cannot load WebP).
+Requests with images to any
 other model, including Jev, fail before they are sent, because Jev answers images
 with meaningless probabilities instead of an error. Details:
 [docs/openrouter-notes.md](docs/openrouter-notes.md#images).

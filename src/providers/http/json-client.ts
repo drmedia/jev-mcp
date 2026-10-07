@@ -20,7 +20,8 @@ function describeFetchFailure(error: unknown): string {
 export interface JsonHttpClientOptions {
   /** Provider name used in error messages, e.g. "TypeSafe". */
   label: string;
-  apiKey: string;
+  /** Sent as a Bearer token. Omitted entirely when undefined (e.g. a local server without auth). */
+  apiKey?: string;
   baseUrl: string;
   parseErrorBody: ErrorBodyParser;
   timeoutMs?: number;
@@ -28,10 +29,10 @@ export interface JsonHttpClientOptions {
   fetch?: typeof fetch;
 }
 
-/** Bearer-authenticated JSON over HTTP with timeout, cancellation and error mapping. */
+/** JSON over HTTP with optional Bearer auth, timeout, cancellation and error mapping. */
 export class JsonHttpClient {
   readonly #label: string;
-  readonly #apiKey: string;
+  readonly #apiKey: string | undefined;
   readonly #baseUrl: string;
   readonly #parseErrorBody: ErrorBodyParser;
   readonly #timeoutMs: number;
@@ -61,10 +62,8 @@ export class JsonHttpClient {
       ? AbortSignal.any([options.signal, timeoutSignal])
       : timeoutSignal;
 
-    const headers: Record<string, string> = {
-      Authorization: `Bearer ${this.#apiKey}`,
-      Accept: "application/json",
-    };
+    const headers: Record<string, string> = { Accept: "application/json" };
+    if (this.#apiKey !== undefined) headers.Authorization = `Bearer ${this.#apiKey}`;
     if (payload !== undefined) headers["Content-Type"] = "application/json";
 
     let response: Response;

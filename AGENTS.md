@@ -737,6 +737,16 @@ Phase 7 (general-purpose image input) is complete when:
 
 Version bumps, tags and releases happen only when the project owner explicitly asks for them. Record unreleased changes under `## [Unreleased]` in `CHANGELOG.md` until then.
 
+Phase 8 (local provider) is complete when:
+
+- `JEV_PROVIDER=local` sends requests to a System One-compatible server on the user's machine or network (`JEV_LOCAL_BASE_URL`, optional `JEV_LOCAL_API_KEY`); no request leaves for a cloud service,
+- the provider is verified against a live local server running a decision model (llama.cpp `llama-server` with Clef Flash),
+- `jev.models` lists the decision models the local server reports, without inventing descriptions or release dates the server does not provide,
+- images are sent only to models the local server reports as image-capable, in the format the server documents, and formats the server is known not to load are rejected before sending,
+- the server itself stays outside this repository: setup is documented, not automated,
+- contract and e2e tests for the local server run only when a local server is reachable,
+- `main` passes CI.
+
 ---
 
 ## 26. Out of Scope for Initial MVP

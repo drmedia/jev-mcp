@@ -63,8 +63,8 @@ export const jevModelListSchema = z.object({
   models: z.array(
     z.object({
       name: z.string(),
-      description: z.string(),
-      releaseDate: z.string(),
+      description: z.string().optional(),
+      releaseDate: z.string().optional(),
     }),
   ),
 });

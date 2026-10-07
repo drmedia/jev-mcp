@@ -3,9 +3,10 @@ import type { JevDescription, JevQuestion } from "../schemas/evaluate.js";
 /** A model or alias the provider accepts in an evaluation request. */
 export interface JevModel {
   name: string;
-  description: string;
-  /** Release date as reported by the provider; format varies (see docs/typesafe-api-notes.md). */
-  releaseDate: string;
+  /** Absent when the provider does not describe its models (for example a local server). */
+  description?: string;
+  /** Release date as reported by the provider; format varies (see docs/typesafe-api-notes.md). Absent when not reported. */
+  releaseDate?: string;
 }
 
 export interface JevModelList {
