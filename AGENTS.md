@@ -803,6 +803,16 @@ Phase 10 (local Streamable HTTP transport) is complete when:
 - OAuth, remote binding, TLS and cloud deployment remain out of scope; they belong to a later deployment phase,
 - `main` passes CI.
 
+Phase 11 (local Docker deployment) is complete when:
+
+- a `Dockerfile` builds the Streamable HTTP server as a multi-stage image on a pinned official Node.js base image, with production dependencies only, running as a non-root user,
+- `JEV_HTTP_HOST` lets the server listen on `0.0.0.0` inside a container only; it accepts `127.0.0.1` (the default) or `0.0.0.0`, and the `Host`, `Origin` and bearer token checks of Phase 10 stay in force either way,
+- `compose.yaml` publishes the port on the host's `127.0.0.1` only, reads secrets from `.env` without baking them into the image, restarts the container unless it was stopped (so the server comes back after a sign-in or reboot once Docker Desktop runs), and checks health with an authenticated MCP request,
+- `.dockerignore` keeps `.env`, `node_modules`, `dist`, tests and Git data out of the build context,
+- the image is verified by building and running it with Compose and calling the tools from a real MCP client (Claude Code), and CI builds the image,
+- cloud deployment, TLS, OAuth and publishing images to a registry remain out of scope,
+- `main` passes CI.
+
 ---
 
 ## 26. Out of Scope for Initial MVP
