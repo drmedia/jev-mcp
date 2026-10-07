@@ -20,9 +20,13 @@ Phase 7 defined in [AGENTS.md](AGENTS.md).
   the bytes, 4 MiB each and 8 MiB in total.
 - OpenRouter sends images to image-capable models (`cloudflare/clef`,
   `cloudflare/clef-flash`) as image parts in `state`, verified against the live API.
-- OpenRouter image requests above 384,000 bytes of images in total are rejected
-  before sending: OpenRouter returns 413 above about that size (measured), far below
-  Clef's documented 4 MiB per image.
+- Clef image requests above 384,000 bytes of images in total are rejected before
+  sending: OpenRouter returns 413 above about that size for Clef (measured), far below
+  Clef's documented 4 MiB per image. Other models are not held to this limit.
+- `openai/gpt-6-luna-decisions` (OpenAI's Decisions API, public beta) is supported
+  through OpenRouter and verified live for text, images and refusals.
+- `refused` error kind: a model refusal (OpenRouter HTTP 502 "refused to answer
+  question") is reported with the question and not retried.
 - docs/openrouter-notes.md records the measured image limit, a small real-photo
   check, request-level differences between Jev and Clef, and that rejected requests
   were not billed.

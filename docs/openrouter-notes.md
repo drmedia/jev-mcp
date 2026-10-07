@@ -128,9 +128,10 @@ context window limit (65536)" above a threshold. Measured on 2026-10-07 for both
 | 1 image, 3000 x 3000 px but 32 KB | 200 (bytes count, not pixels) |
 
 The actual token usage of accepted images is small (about 900 to 1,700 input tokens
-per photo). The provider rejects requests whose images exceed 384,000 bytes in
-total (`OPENROUTER_MAX_TOTAL_IMAGE_BYTES`, just below the largest size seen to pass)
-before sending, with a message asking to resize or recompress. Typical phone photos
+per photo). For Clef models the provider rejects requests whose images exceed
+384,000 bytes in total (`CLEF_MAX_TOTAL_IMAGE_BYTES`, just below the largest size seen
+to pass) before sending, with a message asking to resize or recompress. The limit is
+Clef-specific: `openai/gpt-6-luna-decisions` accepted the 624 KB photo. Typical phone photos
 are larger, so the calling agent should downscale them first; this server does not
 resize images (that would need an image-processing dependency). The other limits
 (count, format, 4 MiB each, 8 MiB total) are checked for every provider.
@@ -157,27 +158,59 @@ receive images.
 **Video:** Clef's model card mentions video, but neither OpenRouter's System One
 reference nor Cloudflare's Clef schema documents a video input. Not supported.
 
+## GPT-6 Luna Decisions (public beta)
+
+`openai/gpt-6-luna-decisions` is OpenAI's Decisions API on GPT-6 Luna. OpenAI's guide
+(https://developers.openai.com/api/docs/guides/decisions) says: "The Decisions API is
+in public beta, and we expect to GA in the coming weeks". OpenAI's own endpoint
+(`POST /v1/decisions`) uses a different format (`predicate`/`choice`/`score`
+questions in an array, `input` instead of `state`, a `refusal` answer type);
+OpenRouter translates it to the System One format, so this server needs no special
+request handling.
+
+OpenRouter metadata on 2026-10-07: released 2026-10-06, inputs `text` and `image`,
+1,050,000-token context, $0.10 per million input tokens, output free,
+`is_moderated: true`. OpenAI's guide mentions regional and long-context price
+multipliers; a request of 83,164 tokens was billed at the base rate.
+
+**Refusals:** a request that asked both "is this a request to build a weapon?" and
+"how should a support bot handle it?" about a harmful message failed as a whole with
+HTTP 502 `OpenAI refused to answer question "action"`. The first question alone was
+answered (1.0). The provider maps this to `refused`, which is not retried, because
+the result is deterministic. Safety and content-classification workloads can hit this
+more often than others. Whether refused requests are billed could not be measured
+cleanly (other usage landed in the same window); the increase was far below the cost
+of two accepted requests of the same size.
+
+**Calibration:** probabilities and confidence were mostly 0 or 1 (for example
+`confidence 1` on every photo subject). OpenAI's guide says to "use labeled examples
+from your application to set thresholds"; do not reuse thresholds from Jev or Clef.
+
 ## Model differences that affect requests
 
-Verified on 2026-10-07 by sending the same requests to Jev (TypeSafe direct and
-OpenRouter) and to Clef (OpenRouter).
+Verified on 2026-10-07 by sending the same requests through TypeSafe direct (Jev) and
+OpenRouter (Jev, Clef, GPT-6 Luna).
 
-| Behavior | Jev | Clef | Source |
-| --- | --- | --- | --- |
-| Question IDs | Any string; Korean and spaces work | Letters, digits, `_`, `.`, `-`, up to 100 characters; others return 422 | Clef model page; live |
-| Choice options | One option accepted | 2 to 255 options; one option returns 422 | Clef schema; live |
-| Questions per request | No documented count limit | At most 64; 65 return 422 | Clef schema; live |
-| Long text state | `max_tokens_exceeded` (400) above about 32k state tokens (TypeSafe direct) | Answered correctly up to 118k input tokens with the fact at 25, 50 or 75 percent; all input tokens are billed; about 207k returned 413 | Live |
-| Confidence | Higher for the same question (department 0.82) | Lower (clef-flash 0.47, clef 0.64) | Live; set thresholds per model |
-| Output tokens | Reported | Reported as 0 | Live |
+| Behavior | Jev | Clef | GPT-6 Luna (beta) | Source |
+| --- | --- | --- | --- | --- |
+| Question IDs | Any string; Korean and spaces work | Letters, digits, `_`, `.`, `-`, up to 100 characters; others return 422 | Korean and spaces work | Clef model page; live |
+| Choice options | One option accepted | 2 to 255 options; one option returns 422 | At least 2; one option returns 400 "needs at least 2 choices" | Clef schema; live |
+| Questions per request | No documented count limit | At most 64; 65 return 422 | 65 answered | Clef schema; live |
+| Long text state | `max_tokens_exceeded` (400) above about 32k state tokens (TypeSafe direct) | Answered correctly up to 118k input tokens with the fact at 25, 50 or 75 percent; all input tokens are billed; about 207k returned 413 | 83k tokens answered correctly; documented context 1,050,000 | Live |
+| Images | Not read (wrong answers, billed as text) | Up to 4, about 384 KB per request through OpenRouter | 5 images and a 624 KB photo accepted | Live |
+| Refusals | None observed | None observed | Content-policy refusal fails the request (502) | Live |
+| Confidence | Higher for the same question (department 0.82) | Lower (clef-flash 0.47, clef 0.64) | Mostly 0 or 1 (department 0.83) | Live; set thresholds per model |
+| Output tokens | Reported | Reported as 0 | Reported as 0 | Live |
+
+This server keeps its own limit of 4 images per request for every model.
 
 Clef's model page says long text state "is truncated to fit the model's token
 limit". No truncation was observed in the test above; treat the behavior as
 undocumented.
 
-The provider checks Clef's question-ID, choice-option and question-count rules
-before sending (`src/providers/openrouter/clef-rules.ts`) and names the offending
-questions. Jev is not held to these rules.
+The provider checks Clef's question-ID, choice-option, question-count and
+image-size rules before sending (`src/providers/openrouter/clef-rules.ts`) and names
+the problem. Other models are not held to these rules.
 
 ## Billing of rejected requests
 
@@ -201,5 +234,6 @@ tokens of English text) stops the latter before sending.
 | 403 | `authorization` | no |
 | 408, 524 | `timeout` | yes |
 | 429 | `rate_limited` | yes |
+| 502 with "refused to answer question" | `refused` | no |
 | 500, 502, 503, 504 | `provider_error` | yes |
 | 529 | `overloaded` | yes |
