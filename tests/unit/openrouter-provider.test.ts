@@ -3,6 +3,7 @@ import { JevError } from "../../src/core/errors.js";
 import { parseOpenRouterErrorBody } from "../../src/providers/openrouter/error-body.js";
 import {
   DEFAULT_OPENROUTER_BASE_URL,
+  OPENROUTER_MAX_TOTAL_IMAGE_BYTES,
   OpenRouterProvider,
 } from "../../src/providers/openrouter/openrouter-provider.js";
 import { solidPng } from "../support/images.js";
@@ -123,6 +124,7 @@ describe("OpenRouterProvider.evaluate", () => {
     [401, "Missing Authentication header", "authentication"],
     [402, "Insufficient credits. Add more using https://openrouter.ai/credits", "payment_required"],
     [403, "Key is disabled", "authorization"],
+    [413, "HTTP 413: estimated tokens exceeded the context window", "invalid_request"],
     [422, "HTTP 422: upstream validation failed", "invalid_request"],
     [429, "Rate limit exceeded", "rate_limited"],
     [502, "Provider returned error", "provider_error"],
@@ -293,6 +295,24 @@ describe("OpenRouterProvider.evaluate with images", () => {
     now += 2 * 60 * 1000;
     await provider.evaluate({ ...request, images: [image] });
     expect(listCalls()).toBe(2);
+  });
+
+  it("rejects images above the OpenRouter total before any request", async () => {
+    const fetchMock = routedFetch();
+    const big = { ...image, byteLength: OPENROUTER_MAX_TOTAL_IMAGE_BYTES / 2 + 1 };
+
+    const error = await captureError(providerWith(fetchMock).evaluate({ ...request, images: [big, big] }));
+
+    expect(error.kind).toBe("invalid_input");
+    expect(error.message).toMatch(/^images: 384 KB in total; OpenRouter rejects image requests above about 384 KB/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("accepts images exactly at the OpenRouter total", async () => {
+    const fetchMock = routedFetch();
+    const half = { ...image, byteLength: OPENROUTER_MAX_TOTAL_IMAGE_BYTES / 2 };
+
+    await expect(providerWith(fetchMock).evaluate({ ...request, images: [half, half] })).resolves.toBeDefined();
   });
 
   it("does not fetch the model list for text-only requests", async () => {

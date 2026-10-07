@@ -16,6 +16,26 @@ export const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api";
 /** How long the decision-model list is reused for image capability checks. */
 const MODEL_CACHE_TTL_MS = 10 * 60 * 1000;
 
+/**
+ * Total image bytes per request that OpenRouter's Clef route accepts. Measured, not
+ * documented: Clef documents 4 MiB per image, but OpenRouter estimates image tokens
+ * from the encoded size and returns 413 above a context-window check. On 2026-10-07 a
+ * single 389,000-byte image passed and 411,600 bytes failed, for both Clef models, and
+ * the limit applies to the request total, not per image. This is set just below the
+ * largest size seen to pass. See docs/openrouter-notes.md.
+ */
+export const OPENROUTER_MAX_TOTAL_IMAGE_BYTES = 384_000;
+
+function assertWithinOpenRouterImageBudget(request: JevEvaluateRequest): void {
+  const total = (request.images ?? []).reduce((sum, image) => sum + image.byteLength, 0);
+  if (total > OPENROUTER_MAX_TOTAL_IMAGE_BYTES) {
+    throw new JevError(
+      "invalid_input",
+      `images: ${Math.round(total / 1000)} KB in total; OpenRouter rejects image requests above about ${OPENROUTER_MAX_TOTAL_IMAGE_BYTES / 1000} KB in total (HTTP 413), although Clef documents 4 MiB per image. Resize or recompress the images.`,
+    );
+  }
+}
+
 export interface OpenRouterProviderOptions {
   apiKey: string;
   /** API root without a version segment; `/v1/...` paths are appended. */
@@ -70,6 +90,7 @@ export class OpenRouterProvider implements JevProvider {
   ): Promise<JevEvaluateResult> {
     const payload = toSystemOnePayload(request);
     if (request.images !== undefined) {
+      assertWithinOpenRouterImageBudget(request);
       await this.#assertAcceptsImages(request.model, options);
       payload.state = withImages(request);
     }

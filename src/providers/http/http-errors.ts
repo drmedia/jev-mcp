@@ -25,6 +25,7 @@ function kindForStatus(status: number, providerCode: string | undefined): JevErr
     case 524:
       return "timeout";
     case 400:
+    case 413:
     case 422:
       return "invalid_request";
     case 429:

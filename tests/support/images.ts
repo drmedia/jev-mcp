@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { deflateSync } from "node:zlib";
 
 const CRC_TABLE = Array.from({ length: 256 }, (_, n) => {
@@ -46,3 +47,20 @@ export const SIGNATURES = {
   webp: Buffer.concat([Buffer.from("RIFF"), Buffer.from([0x24, 0, 0, 0]), Buffer.from("WEBPVP8 ")]),
   gif: Buffer.from("GIF89a\x01\x00\x01\x00", "latin1"),
 };
+
+/** An incompressible random-noise PNG, so the file size tracks the pixel count. */
+export function noisePng(side: number): Buffer {
+  const header = Buffer.alloc(13);
+  header.writeUInt32BE(side, 0);
+  header.writeUInt32BE(side, 4);
+  header.set([8, 2, 0, 0, 0], 8);
+  const rows = Array.from({ length: side }, () =>
+    Buffer.concat([Buffer.from([0]), randomBytes(side * 3)]),
+  );
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    pngChunk("IHDR", header),
+    pngChunk("IDAT", deflateSync(Buffer.concat(rows), { level: 9 })),
+    pngChunk("IEND", Buffer.alloc(0)),
+  ]);
+}

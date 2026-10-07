@@ -50,6 +50,7 @@ export {
 } from "./providers/retrying-provider.js";
 export { createProvider } from "./providers/create-provider.js";
 export {
+  OPENROUTER_MAX_TOTAL_IMAGE_BYTES,
   OpenRouterProvider,
   type OpenRouterProviderOptions,
 } from "./providers/openrouter/openrouter-provider.js";

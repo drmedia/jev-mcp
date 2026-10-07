@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { JevError } from "../../src/core/errors.js";
 import { JevCore } from "../../src/core/jev-core.js";
-import { pngDataUrl } from "../support/images.js";
+import { OPENROUTER_MAX_TOTAL_IMAGE_BYTES } from "../../src/providers/openrouter/openrouter-provider.js";
+import { noisePng, pngDataUrl } from "../support/images.js";
 import { hasOpenRouterKey, openRouterProviderFromEnv } from "../support/providers-from-env.js";
 
 // OpenRouter System One API behavior observed on 2026-10-07; see docs/openrouter-notes.md.
@@ -125,6 +126,58 @@ describe.skipIf(!hasOpenRouterKey)("OpenRouter System One contract: images", () 
     expect(error).toBeInstanceOf(JevError);
     expect((error as JevError).kind).toBe("invalid_input");
     expect((error as JevError).message).toContain("does not accept images");
+  });
+
+  // Not documented: OpenRouter estimates image tokens from the encoded size and returns
+  // 413 for image totals far below Clef's documented 4 MiB per image. The limit is per
+  // request, not per image. OPENROUTER_MAX_TOTAL_IMAGE_BYTES sits just below what passes.
+  describe("image size limit (measured)", () => {
+    async function rawStatus(images: Buffer[]): Promise<number> {
+      const response = await fetch("https://openrouter.ai/api/v1/systemone", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY?.trim()}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "cloudflare/clef-flash",
+          state: images.map((image) => ({
+            type: "image_url",
+            image_url: { url: `data:image/png;base64,${image.toString("base64")}` },
+          })),
+          questions: { ok: { type: "noul", instructions: "Is an image attached?" } },
+        }),
+      });
+      await response.text();
+      return response.status;
+    }
+
+    it("accepts one image just below the local limit", async () => {
+      const image = noisePng(355);
+      expect(image.length).toBeLessThanOrEqual(OPENROUTER_MAX_TOTAL_IMAGE_BYTES);
+      expect(await rawStatus([image])).toBe(200);
+    });
+
+    it("rejects one image of about 410 KB with 413", async () => {
+      expect(await rawStatus([noisePng(370)])).toBe(413);
+    });
+
+    it("applies the limit to the request total: two 270 KB images are rejected with 413", async () => {
+      expect(await rawStatus([noisePng(300), noisePng(300)])).toBe(413);
+    });
+
+    it("is enforced locally before sending, with an actionable message", async () => {
+      const core = new JevCore({ provider: openRouterProviderFromEnv(), defaultModel: "cloudflare/clef-flash" });
+      const data = `data:image/png;base64,${noisePng(370).toString("base64")}`;
+
+      const error = await core
+        .evaluate({ state: "x", questions, images: [{ data }] })
+        .catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(JevError);
+      expect((error as JevError).kind).toBe("invalid_input");
+      expect((error as JevError).message).toContain("Resize or recompress the images");
+    });
   });
 
   // Not in the System One reference: a top-level `images` field (Cloudflare's format)
