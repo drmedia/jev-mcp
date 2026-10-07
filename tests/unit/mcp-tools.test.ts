@@ -91,6 +91,19 @@ describe("MCP tools", () => {
     expect(provider.evaluateCalls[0]?.model).toBe("jev-latest");
   });
 
+  it("jev.evaluate passes a provider-reported cost through to structured output", async () => {
+    const withCost = { ...evaluateResult, usage: { ...evaluateResult.usage, costUsd: 0.00003 } };
+    const mcp = await connect(new MockJevProvider({ evaluate: () => withCost }));
+
+    const result = (await mcp.callTool({
+      name: "jev.evaluate",
+      arguments: evaluateArgs,
+    })) as CallToolResult;
+
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toEqual(withCost);
+  });
+
   it("jev.evaluate rejects malformed questions without calling the provider", async () => {
     const provider = new MockJevProvider({ evaluate: () => evaluateResult });
     const mcp = await connect(provider);

@@ -1,4 +1,9 @@
-export { loadConfig, type JevConfig } from "./config/config.js";
+export {
+  loadConfig,
+  type JevConfig,
+  type ProviderConfig,
+  type ProviderName,
+} from "./config/config.js";
 export { JevError, type JevErrorKind } from "./core/errors.js";
 export { JevCore, type JevCoreOptions } from "./core/jev-core.js";
 export type {
@@ -31,6 +36,11 @@ export {
   type RetryingJevProviderOptions,
   type RetryPolicy,
 } from "./providers/retrying-provider.js";
+export { createProvider } from "./providers/create-provider.js";
+export {
+  OpenRouterProvider,
+  type OpenRouterProviderOptions,
+} from "./providers/openrouter/openrouter-provider.js";
 export {
   TypeSafeProvider,
   type TypeSafeProviderOptions,

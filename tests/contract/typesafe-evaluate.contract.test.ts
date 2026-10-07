@@ -1,20 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { loadConfig } from "../../src/config/config.js";
 import { JevError } from "../../src/core/errors.js";
 import { JevCore } from "../../src/core/jev-core.js";
-import { TypeSafeProvider } from "../../src/providers/typesafe/typesafe-provider.js";
-
-const hasApiKey = Boolean(process.env.TYPESAFE_API_KEY?.trim());
+import { hasTypeSafeKey as hasApiKey, typesafeProviderFromEnv } from "../support/providers-from-env.js";
 
 describe("TypeSafe /v1/systemone contract", () => {
   // The docs list no 400 response; the live API answers an unknown model with
   // 400 + api_usage_error. This pins the observed behavior and its error mapping.
   it.skipIf(!hasApiKey)("rejects an unknown model with HTTP 400 as invalid_request", async () => {
-    const config = loadConfig();
-    const provider = new TypeSafeProvider({
-      apiKey: config.typesafeApiKey,
-      baseUrl: config.typesafeBaseUrl,
-    });
+    const provider = typesafeProviderFromEnv();
 
     const error = await provider
       .evaluate({
@@ -32,14 +25,7 @@ describe("TypeSafe /v1/systemone contract", () => {
   });
 
   it.skipIf(!hasApiKey)("answers noul, choice and score questions in one request", async () => {
-    const config = loadConfig();
-    const core = new JevCore({
-      provider: new TypeSafeProvider({
-        apiKey: config.typesafeApiKey,
-        baseUrl: config.typesafeBaseUrl,
-      }),
-      defaultModel: config.jevModel,
-    });
+    const core = new JevCore({ provider: typesafeProviderFromEnv(), defaultModel: "jev-latest" });
 
     // JevCore validates the answers against the questions; reaching the assertions
     // means every answer was present, typed correctly and within range.
