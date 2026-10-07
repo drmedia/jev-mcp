@@ -7,6 +7,10 @@ include breaking changes.
 
 ## [Unreleased]
 
+### Added
+
+- MIT license (`LICENSE`); `package.json` now declares `MIT` instead of the npm default `ISC`.
+
 ## [0.3.0] - 2026-10-07
 
 Completes Phases 7 and 8 defined in [AGENTS.md](AGENTS.md): general-purpose image
