@@ -293,7 +293,7 @@ Do not hard-code the available model list when the provider supplies a model dis
 
 ### Convenience Tools
 
-Future:
+Implemented:
 
 ```text
 jev.choice
@@ -306,6 +306,16 @@ These are convenience wrappers.
 They must delegate to the same evaluation path used by `jev.evaluate`.
 
 Do not create separate TypeSafe API implementations for each convenience tool.
+
+---
+
+### jev.evaluate_batch
+
+Asks the same questions about many items (Phase 9), for general-purpose classification and ranking.
+
+It must reuse the same JEV Core evaluation path as `jev.evaluate`, one provider request per item, because the System One APIs accept one state per request.
+
+Prefer this tool over adding task-specific tools (for example classify or rerank) that only rephrase `noul`, `choice` or `score` questions.
 
 ---
 
@@ -770,8 +780,6 @@ Do not add these unless explicitly requested:
 - GraphRAG
 - maintenance history
 - rule engines
-- OpenRouter
-- local inference
 - automatic provider fallback
 - OAuth
 - Docker/Kubernetes
@@ -782,6 +790,8 @@ Do not add these unless explicitly requested:
 - multi-tenant support
 
 These are future phases.
+
+OpenRouter (Phase 6) and local inference (Phase 8) were originally on this list and have since been implemented on request.
 
 ---
 
