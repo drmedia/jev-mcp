@@ -703,6 +703,15 @@ works end-to-end.
 
 MVP Phase 4 is complete when the same MCP implementation can be prepared for additional MCP clients without changing JEV Core.
 
+Phase 5 (stabilization and first release, `v0.1.0`) is complete when:
+
+- every documented discrepancy between the TypeSafe documentation and the live API is pinned by a contract test,
+- package metadata reflects a pre-1.0 release (`version` `0.1.0`, `private` to prevent accidental npm publishing, `repository`),
+- `CHANGELOG.md` records the release,
+- `main` passes CI, and the `v0.1.0` tag and GitHub release exist.
+
+Phase 5 adds no new runtime features.
+
 ---
 
 ## 26. Out of Scope for Initial MVP
