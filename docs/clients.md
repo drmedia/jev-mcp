@@ -112,7 +112,10 @@ npm run start:http
 On Windows, double-click `scripts\start-http-server.cmd` instead: it builds once if
 needed and runs the server in its own window, and refuses to start a second copy.
 `scripts\stop-http-server.cmd` stops a server on port 8098, and only if it is a
-`node` process. Both scripts assume the default port.
+`node` process. Both scripts assume the default port. Windows only lets you stop a
+server you started yourself: if it was started by another user or from an elevated
+window, the stop script reports "access denied"; close the server's window or run the
+script as administrator.
 
 It prints `Listening on http://127.0.0.1:8098/mcp`. Set `PORT` to use another port.
 Stop it with Ctrl+C. After `npm run build`, restart it; clients reconnect on their
