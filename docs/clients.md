@@ -23,7 +23,8 @@ Paths below use `/absolute/path/to/jev-mcp`; on Windows use a path such as
 | --- | --- | --- |
 | Claude Code | stdio | Verified end to end (2026-10-07, Claude Code 2.1.289) |
 | Codex CLI | stdio | Verified end to end (2026-10-07, codex-cli 0.160.0) |
-| VS Code (agent mode) | stdio | Workspace config provided, not yet verified |
+| Claude Code in VS Code (extension) | stdio | Verified end to end (2026-10-07); uses `.mcp.json` |
+| VS Code Copilot agent mode | stdio | Workspace config provided, not yet verified |
 | Claude Desktop | stdio | Verified end to end (2026-10-07, Windows) |
 | ChatGPT | stdio via Secure MCP Tunnel | Verified end to end (2026-10-07, tunnel-client 0.0.16) |
 
@@ -65,7 +66,10 @@ codex exec \
   "Call the jev models tool"
 ```
 
-## VS Code (agent mode)
+## VS Code Copilot agent mode
+
+This section is for VS Code's built-in Copilot chat. The Claude Code extension for
+VS Code does not use it; it reads `.mcp.json` like the Claude Code CLI.
 
 The repository ships a workspace [.vscode/mcp.json](../.vscode/mcp.json). Open the
 repository folder, then start the `jev` server from the MCP view or the
