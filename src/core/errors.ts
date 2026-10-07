@@ -6,6 +6,8 @@ export type JevErrorKind =
   /** The provider account cannot pay for the request (HTTP 402, e.g. no credits left). */
   | "payment_required"
   | "invalid_request"
+  /** The model declined to answer, e.g. a content-policy refusal. Retrying gives the same result. */
+  | "refused"
   | "rate_limited"
   | "overloaded"
   | "timeout"

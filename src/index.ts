@@ -50,7 +50,10 @@ export {
 } from "./providers/retrying-provider.js";
 export { createProvider } from "./providers/create-provider.js";
 export {
-  OPENROUTER_MAX_TOTAL_IMAGE_BYTES,
+  CLEF_MAX_QUESTIONS,
+  CLEF_MAX_TOTAL_IMAGE_BYTES,
+} from "./providers/openrouter/clef-rules.js";
+export {
   OpenRouterProvider,
   type OpenRouterProviderOptions,
 } from "./providers/openrouter/openrouter-provider.js";

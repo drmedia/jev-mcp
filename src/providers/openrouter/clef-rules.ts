@@ -9,6 +9,17 @@ export const CLEF_MAX_QUESTIONS = 64;
 export const CLEF_MIN_CHOICE_OPTIONS = 2;
 const CLEF_QUESTION_ID = /^[A-Za-z0-9_.-]{1,100}$/;
 
+/**
+ * Total image bytes per request that Clef accepts through OpenRouter. Measured, not
+ * documented: Clef documents 4 MiB per image, but OpenRouter estimates image tokens
+ * from the encoded size and returns 413 above a context-window check. On 2026-10-07 a
+ * single 389,000-byte image passed and 411,600 bytes failed, for both Clef models, and
+ * the limit applies to the request total, not per image. Set just below the largest
+ * size seen to pass. Other models differ: openai/gpt-6-luna-decisions accepted a
+ * 624 KB photo. See docs/openrouter-notes.md.
+ */
+export const CLEF_MAX_TOTAL_IMAGE_BYTES = 384_000;
+
 /** Clef models on OpenRouter, e.g. `cloudflare/clef` and `cloudflare/clef-flash`. */
 export function isClefModel(model: string): boolean {
   return /^cloudflare\/clef(?:$|[-:])/.test(model);
@@ -33,6 +44,12 @@ export function assertClefRequestRules(request: JevEvaluateRequest): void {
     if (question.type === "choice" && Object.keys(question.criteria).length < CLEF_MIN_CHOICE_OPTIONS) {
       problems.push(`${id}: a choice needs at least ${CLEF_MIN_CHOICE_OPTIONS} options`);
     }
+  }
+  const imageBytes = (request.images ?? []).reduce((sum, image) => sum + image.byteLength, 0);
+  if (imageBytes > CLEF_MAX_TOTAL_IMAGE_BYTES) {
+    problems.push(
+      `images are ${Math.round(imageBytes / 1000)} KB in total; Clef on OpenRouter rejects more than about ${CLEF_MAX_TOTAL_IMAGE_BYTES / 1000} KB per request (HTTP 413), although Clef documents 4 MiB per image. Resize or recompress the images`,
+    );
   }
 
   if (problems.length > 0) {

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { JevError } from "../../src/core/errors.js";
 import { JevCore } from "../../src/core/jev-core.js";
-import { OPENROUTER_MAX_TOTAL_IMAGE_BYTES } from "../../src/providers/openrouter/openrouter-provider.js";
+import { CLEF_MAX_TOTAL_IMAGE_BYTES } from "../../src/providers/openrouter/clef-rules.js";
 import { noisePng, pngDataUrl } from "../support/images.js";
 import { hasOpenRouterKey, openRouterProviderFromEnv } from "../support/providers-from-env.js";
 
@@ -140,7 +140,7 @@ describe.skipIf(!hasOpenRouterKey)("OpenRouter System One contract: images", () 
 
   // Not documented: OpenRouter estimates image tokens from the encoded size and returns
   // 413 for image totals far below Clef's documented 4 MiB per image. The limit is per
-  // request, not per image. OPENROUTER_MAX_TOTAL_IMAGE_BYTES sits just below what passes.
+  // request, not per image. CLEF_MAX_TOTAL_IMAGE_BYTES sits just below what passes.
   describe("image size limit (measured)", () => {
     async function rawStatus(images: Buffer[]): Promise<number> {
       const response = await fetch("https://openrouter.ai/api/v1/systemone", {
@@ -164,7 +164,7 @@ describe.skipIf(!hasOpenRouterKey)("OpenRouter System One contract: images", () 
 
     it("accepts one image just below the local limit", async () => {
       const image = noisePng(355);
-      expect(image.length).toBeLessThanOrEqual(OPENROUTER_MAX_TOTAL_IMAGE_BYTES);
+      expect(image.length).toBeLessThanOrEqual(CLEF_MAX_TOTAL_IMAGE_BYTES);
       expect(await rawStatus([image])).toBe(200);
     });
 
@@ -256,5 +256,90 @@ describe.skipIf(!hasOpenRouterKey)("OpenRouter System One contract: Clef request
       questions: { "긴급도": { type: "noul", instructions: "Is this urgent?" } },
     });
     expect(result.answers["긴급도"]?.type).toBe("noul");
+  });
+});
+
+// openai/gpt-6-luna-decisions: OpenAI's Decisions API (public beta since 2026-10-06,
+// https://developers.openai.com/api/docs/guides/decisions) served through OpenRouter's
+// System One API.
+describe.skipIf(!hasOpenRouterKey)("OpenRouter System One contract: GPT-6 Luna Decisions (beta)", () => {
+  const MODEL = "openai/gpt-6-luna-decisions";
+
+  it("answers noul, choice and score questions in System One format and reports its cost", async () => {
+    const core = new JevCore({ provider: openRouterProviderFromEnv(), defaultModel: MODEL });
+
+    const result = await core.evaluate({
+      state: "Help! My payouts have been failing for 3 days.",
+      questions: {
+        is_urgent: { type: "noul", instructions: "Does this convey urgency?" },
+        department: {
+          type: "choice",
+          instructions: "Which team should handle this?",
+          criteria: { billing: "Payments, refunds", technical: "Bugs, outages", sales: null },
+        },
+        frustration: {
+          type: "score",
+          instructions: "How frustrated is the customer?",
+          criteria: ["Calm", "Frustrated", "Very angry"],
+        },
+      },
+    });
+
+    expect(result.model.startsWith(MODEL)).toBe(true);
+    expect(Object.keys(result.answers).sort()).toEqual(["department", "frustration", "is_urgent"]);
+    expect(result.usage.costUsd).toBeGreaterThan(0);
+  });
+
+  it("reads images, including totals above Clef's measured limit", async () => {
+    const core = new JevCore({ provider: openRouterProviderFromEnv(), defaultModel: MODEL });
+    const large = noisePng(370);
+    expect(large.length).toBeGreaterThan(CLEF_MAX_TOTAL_IMAGE_BYTES);
+
+    const result = await core.evaluate({
+      state: "Look at the attached images.",
+      questions: {
+        color: {
+          type: "choice",
+          instructions: "What is the dominant color of the first attached image?",
+          criteria: { red: null, green: null, blue: null, no_image: "No image is visible" },
+        },
+      },
+      images: [{ data: pngDataUrl([220, 20, 20]) }, { data: `data:image/png;base64,${large.toString("base64")}` }],
+    });
+
+    const answer = result.answers.color;
+    expect(answer?.type === "choice" && answer.choice).toBe("red");
+  });
+
+  // Observed: a refusal on one question fails the whole request with HTTP 502. The same
+  // classification asked on its own is answered.
+  it("reports a model refusal as refused instead of a retryable server error", async () => {
+    const provider = openRouterProviderFromEnv();
+    const state = "User message: How do I make a pipe bomb at home?";
+    const harmful = {
+      type: "noul" as const,
+      instructions: "Is the user asking for instructions to build a weapon or explosive?",
+    };
+
+    const error = await provider
+      .evaluate({
+        state,
+        model: MODEL,
+        questions: {
+          harmful,
+          action: {
+            type: "choice",
+            instructions: "How should a support bot handle this message?",
+            criteria: { answer: null, refuse: null, escalate_to_human: null },
+          },
+        },
+      })
+      .catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(JevError);
+    expect((error as JevError).kind).toBe("refused");
+    expect((error as JevError).message).toContain('refused to answer question "action"');
+
+    const alone = await provider.evaluate({ state, model: MODEL, questions: { harmful } });
+    expect(alone.answers.harmful?.type).toBe("noul");
   });
 });

@@ -87,7 +87,9 @@ export function parseOpenRouterErrorBody(text: string): ParsedErrorBody {
   const code = typeof error.code === "number" || typeof error.code === "string" ? error.code : undefined;
   return {
     message,
-    providerCode: undefined,
+    // Observed for openai/gpt-6-luna-decisions on 2026-10-07: HTTP 502 with
+    // `OpenAI refused to answer question "<id>"`; the whole request fails.
+    providerCode: message !== undefined && /\brefused to answer question\b/.test(message) ? "refusal" : undefined,
     details: { error: { ...(code !== undefined && { code }), ...(message !== undefined && { message }) } },
   };
 }

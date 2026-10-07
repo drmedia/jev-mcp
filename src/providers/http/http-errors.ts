@@ -14,6 +14,9 @@ function kindForStatus(status: number, providerCode: string | undefined): JevErr
   // TypeSafe answers a missing API key with 403 + `authentication_error`,
   // although its docs list 401 for that case. Trust the error type over the status.
   if (providerCode === "authentication_error") return "authentication";
+  // A model refusal arrives as HTTP 502 through OpenRouter but is deterministic, so it
+  // must not be treated (and retried) as a transient upstream failure.
+  if (providerCode === "refusal") return "refused";
   switch (status) {
     case 401:
       return "authentication";

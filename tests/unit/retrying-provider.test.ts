@@ -66,6 +66,8 @@ describe("isRetryable", () => {
     ["authentication", { status: 401 }, false],
     ["authorization", { status: 403 }, false],
     ["invalid_request", { status: 422 }, false],
+    ["refused", { status: 502 }, false],
+    ["payment_required", { status: 402 }, false],
     ["invalid_input", {}, false],
     ["invalid_response", {}, false],
     ["configuration", {}, false],
