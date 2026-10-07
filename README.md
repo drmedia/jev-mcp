@@ -33,6 +33,12 @@ npm run build
 The stdio server loads `.env` from the package root when present. Variables already
 set by the MCP client or shell take precedence.
 
+## Clients
+
+Verified with Claude Code, Codex CLI and ChatGPT (through OpenAI's Secure MCP
+Tunnel). Setup for each client, plus VS Code and Claude Desktop:
+[docs/clients.md](docs/clients.md).
+
 ## Use with Claude Code
 
 This repository includes a project-scoped [.mcp.json](.mcp.json) that starts
