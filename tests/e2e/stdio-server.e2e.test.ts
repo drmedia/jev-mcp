@@ -1,8 +1,12 @@
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { afterEach, describe, expect, it } from "vitest";
+import { solidPng } from "../support/images.js";
 
 const serverPath = fileURLToPath(new URL("../../dist/transport/stdio.js", import.meta.url));
 const hasApiKey = Boolean(process.env.TYPESAFE_API_KEY?.trim());
@@ -25,7 +29,7 @@ function serverEnv(overrides: Record<string, string>): Record<string, string> {
     const value = process.env[key];
     if (value !== undefined) env[key] = value;
   }
-  return { JEV_PROVIDER: "typesafe", JEV_MODEL: "jev-latest", ...env, ...overrides };
+  return { JEV_PROVIDER: "typesafe", JEV_MODEL: "jev-latest", JEV_IMAGE_DIRS: "", ...env, ...overrides };
 }
 
 async function connect(env: Record<string, string>): Promise<Client> {
@@ -122,6 +126,47 @@ describe("stdio MCP server (e2e)", () => {
         (model) => model.name,
       );
       expect(names).toContain("cloudflare/clef-flash");
+    },
+  );
+
+  it.skipIf(!hasOpenRouterKey)(
+    "reads an image file from JEV_IMAGE_DIRS and sends it to Clef; paths outside are refused",
+    async () => {
+      const dir = await mkdtemp(join(tmpdir(), "jev-e2e-images-"));
+      const outside = await mkdtemp(join(tmpdir(), "jev-e2e-outside-"));
+      try {
+        await writeFile(join(dir, "part.png"), solidPng([220, 20, 20]));
+        await writeFile(join(outside, "secret.png"), solidPng([20, 40, 220]));
+        const mcp = await connect(
+          serverEnv({
+            JEV_PROVIDER: "openrouter",
+            JEV_MODEL: "cloudflare/clef-flash",
+            JEV_IMAGE_DIRS: dir,
+          }),
+        );
+        const question = {
+          state: "Inspection photo of a part.",
+          instructions: "What is the dominant color of the attached image?",
+          criteria: { red: null, green: null, blue: null },
+        };
+
+        const inside = (await mcp.callTool({
+          name: "jev.choice",
+          arguments: { ...question, images: [{ path: join(dir, "part.png") }] },
+        })) as CallToolResult;
+        expect(inside.isError).toBeFalsy();
+        expect((inside.structuredContent as { answer: { choice: string } }).answer.choice).toBe("red");
+
+        const refused = (await mcp.callTool({
+          name: "jev.choice",
+          arguments: { ...question, images: [{ path: join(outside, "secret.png") }] },
+        })) as CallToolResult;
+        expect(refused.isError).toBe(true);
+        expect(JSON.stringify(refused.content)).toContain("outside the directories allowed by JEV_IMAGE_DIRS");
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+        await rm(outside, { recursive: true, force: true });
+      }
     },
   );
 

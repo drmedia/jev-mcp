@@ -1,3 +1,4 @@
+import { delimiter, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   DEFAULT_JEV_MAX_RETRIES,
@@ -25,6 +26,31 @@ describe("loadConfig", () => {
       provider: { name: "typesafe", apiKey: "test-key", baseUrl: DEFAULT_TYPESAFE_BASE_URL },
       jevModel: DEFAULT_JEV_MODEL,
       jevMaxRetries: DEFAULT_JEV_MAX_RETRIES,
+      imageDirectories: [],
+    });
+  });
+
+  describe("JEV_IMAGE_DIRS", () => {
+    const dirA = resolve("/images/a");
+    const dirB = resolve("/images/b");
+
+    it("splits on the platform path delimiter and drops empty entries", () => {
+      const config = loadConfig({
+        TYPESAFE_API_KEY: "k",
+        JEV_IMAGE_DIRS: ` ${dirA}${delimiter}${delimiter}${dirB} `,
+      });
+      expect(config.imageDirectories).toEqual([dirA, dirB]);
+    });
+
+    it("is empty (image paths disabled) when unset or blank", () => {
+      expect(loadConfig({ TYPESAFE_API_KEY: "k" }).imageDirectories).toEqual([]);
+      expect(loadConfig({ TYPESAFE_API_KEY: "k", JEV_IMAGE_DIRS: "  " }).imageDirectories).toEqual([]);
+    });
+
+    it("rejects relative directories", () => {
+      expect(configError({ TYPESAFE_API_KEY: "k", JEV_IMAGE_DIRS: "photos" }).message).toMatch(
+        /JEV_IMAGE_DIRS entries must be absolute paths/,
+      );
     });
   });
 

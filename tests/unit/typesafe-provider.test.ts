@@ -334,3 +334,23 @@ describe("TypeSafeProvider.evaluate", () => {
     expect(error.message).toContain("body.questions.frustration.score.criteria");
   });
 });
+
+describe("TypeSafeProvider.evaluate with images", () => {
+  it("refuses images without calling the API, because TypeSafe models are text only", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+    const provider = providerWith(fetchMock);
+
+    const error = await captureError(
+      provider.evaluate({
+        state: "x",
+        model: "jev-latest",
+        questions: { q: { type: "noul", instructions: "Is it red?" } },
+        images: [{ mediaType: "image/png", base64: "iVBORw0KGgo=", byteLength: 8 }],
+      }),
+    );
+
+    expect(error.kind).toBe("invalid_input");
+    expect(error.message).toMatch(/TypeSafe models accept text only/);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+});

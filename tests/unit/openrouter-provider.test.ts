@@ -5,6 +5,7 @@ import {
   DEFAULT_OPENROUTER_BASE_URL,
   OpenRouterProvider,
 } from "../../src/providers/openrouter/openrouter-provider.js";
+import { solidPng } from "../support/images.js";
 
 const API_KEY = "sk-or-test-key";
 
@@ -29,6 +30,32 @@ async function captureError(promise: Promise<unknown>): Promise<JevError> {
   }
   throw new Error("expected promise to reject");
 }
+
+// Documented `Model` shape (architecture.input_modalities and output_modalities are required).
+const modelList = {
+  data: [
+    {
+      id: "cloudflare/clef-flash",
+      name: "Cloudflare: Clef Flash",
+      description: "Fast 9B decision model.",
+      created: 1790870972,
+      architecture: { input_modalities: ["text", "image"], output_modalities: ["decisions"] },
+    },
+    {
+      id: "typesafe/jev-1.13",
+      name: "TypeSafe: Jev 1.13",
+      created: 1789776000,
+      architecture: { input_modalities: ["text"], output_modalities: ["decisions"] },
+    },
+    {
+      id: "some/chat-model",
+      name: "Chat",
+      description: "Not a decision model.",
+      created: 1789776000,
+      architecture: { input_modalities: ["text", "image"], output_modalities: ["text"] },
+    },
+  ],
+};
 
 const request = {
   state: "Help! My payouts have been failing for 3 days.",
@@ -133,32 +160,6 @@ describe("OpenRouterProvider.evaluate", () => {
 });
 
 describe("OpenRouterProvider.models", () => {
-  const modelList = {
-    data: [
-      {
-        id: "cloudflare/clef-flash",
-        name: "Cloudflare: Clef Flash",
-        description: "Fast 9B decision model.",
-        created: 1790870972,
-        architecture: { output_modalities: ["decisions"] },
-      },
-      {
-        id: "typesafe/jev-1.13",
-        name: "TypeSafe: Jev 1.13",
-        description: "System One decision model.",
-        created: 1789776000,
-        architecture: { output_modalities: ["decisions"] },
-      },
-      {
-        id: "some/chat-model",
-        name: "Chat",
-        description: "Not a decision model.",
-        created: 1789776000,
-        architecture: { output_modalities: ["text"] },
-      },
-    ],
-  };
-
   it("lists decision models only, with ISO release dates", async () => {
     const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(modelList));
 
@@ -170,7 +171,8 @@ describe("OpenRouterProvider.models", () => {
     expect(result).toEqual({
       models: [
         { name: "cloudflare/clef-flash", description: "Fast 9B decision model.", releaseDate: "2026-10-01" },
-        { name: "typesafe/jev-1.13", description: "System One decision model.", releaseDate: "2026-09-19" },
+        // `description` is optional in OpenRouter's schema; `name` stands in.
+        { name: "typesafe/jev-1.13", description: "TypeSafe: Jev 1.13", releaseDate: "2026-09-19" },
       ],
     });
   });
@@ -210,5 +212,94 @@ describe("parseOpenRouterErrorBody", () => {
 
   it("keeps non-JSON bodies as truncated text", () => {
     expect(parseOpenRouterErrorBody("Bad Gateway").details).toBe("Bad Gateway");
+  });
+});
+
+describe("OpenRouterProvider.evaluate with images", () => {
+  const png = solidPng([220, 20, 20]);
+  const image = { mediaType: "image/png" as const, base64: png.toString("base64"), byteLength: png.byteLength };
+  const imagePart = { type: "image_url", image_url: { url: `data:image/png;base64,${png.toString("base64")}` } };
+
+  /** Answers the model list first, then the System One call. */
+  function routedFetch() {
+    return vi.fn<typeof fetch>(async (url) =>
+      String(url).includes("/v1/models") ? jsonResponse(modelList) : jsonResponse(wireResponse),
+    );
+  }
+
+  function postedBody(fetchMock: ReturnType<typeof routedFetch>): Record<string, unknown> {
+    const post = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
+    return JSON.parse(post![1]!.body as string) as Record<string, unknown>;
+  }
+
+  it("puts images first in a state array, as OpenRouter's System One API requires", async () => {
+    const fetchMock = routedFetch();
+
+    await providerWith(fetchMock).evaluate({ ...request, images: [image] });
+
+    expect(postedBody(fetchMock)).toEqual({
+      model: "cloudflare/clef-flash",
+      state: [imagePart, request.state],
+      questions: request.questions,
+    });
+  });
+
+  it("keeps the elements of an array state after the images", async () => {
+    const fetchMock = routedFetch();
+
+    await providerWith(fetchMock).evaluate({ ...request, state: ["a", { b: 1 }], images: [image, image] });
+
+    expect(postedBody(fetchMock).state).toEqual([imagePart, imagePart, "a", { b: 1 }]);
+  });
+
+  it("never sends images to a model whose inputs are text only", async () => {
+    const fetchMock = routedFetch();
+
+    const error = await captureError(
+      providerWith(fetchMock).evaluate({ ...request, model: "typesafe/jev-1.13", images: [image] }),
+    );
+
+    expect(error.kind).toBe("invalid_input");
+    expect(error.message).toBe(
+      "Model typesafe/jev-1.13 does not accept images (OpenRouter lists its inputs as: text)",
+    );
+    expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+  });
+
+  it.each(["jev-latest", "clef-flash", "some/chat-model"])(
+    "rejects images for %s, which is not a listed image-capable decision model",
+    async (model) => {
+      const fetchMock = routedFetch();
+
+      const error = await captureError(providerWith(fetchMock).evaluate({ ...request, model, images: [image] }));
+
+      expect(error.kind).toBe("invalid_input");
+      expect(error.message).toContain(`Model ${model} is not listed by OpenRouter`);
+      expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(false);
+    },
+  );
+
+  it("reuses the model list for 10 minutes", async () => {
+    let now = 0;
+    const fetchMock = routedFetch();
+    const provider = new OpenRouterProvider({ apiKey: API_KEY, fetch: fetchMock, now: () => now });
+    const listCalls = () => fetchMock.mock.calls.filter(([url]) => String(url).includes("/v1/models")).length;
+
+    await provider.evaluate({ ...request, images: [image] });
+    now += 9 * 60 * 1000;
+    await provider.evaluate({ ...request, images: [image] });
+    expect(listCalls()).toBe(1);
+
+    now += 2 * 60 * 1000;
+    await provider.evaluate({ ...request, images: [image] });
+    expect(listCalls()).toBe(2);
+  });
+
+  it("does not fetch the model list for text-only requests", async () => {
+    const fetchMock = routedFetch();
+
+    await providerWith(fetchMock).evaluate(request);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });

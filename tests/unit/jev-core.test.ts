@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { JevError } from "../../src/core/errors.js";
 import { JevCore } from "../../src/core/jev-core.js";
 import type { JevEvaluateResult } from "../../src/core/provider.js";
+import { pngDataUrl, solidPng } from "../support/images.js";
 import { MockJevProvider } from "../support/mock-provider.js";
 
 const input = {
@@ -151,5 +152,78 @@ describe("JevCore.models", () => {
     });
 
     await expect(core.models()).resolves.toEqual(models);
+  });
+});
+
+describe("JevCore.evaluate with images", () => {
+  const noulOnly = { state: "Look at the photo.", questions: { ok: { type: "noul", instructions: "Is it red?" } } };
+  const noulResult: JevEvaluateResult = {
+    model: "cloudflare/clef-flash",
+    answers: { ok: { type: "noul", noul: 0.97 } },
+    usage: { inputTokens: 300, outputTokens: 0 },
+  };
+
+  it("validates data URLs and passes the decoded images to the provider", async () => {
+    const provider = new MockJevProvider({ evaluate: () => noulResult });
+    const core = new JevCore({ provider, defaultModel: "cloudflare/clef-flash" });
+
+    await core.evaluate({ ...noulOnly, images: [{ data: pngDataUrl([220, 20, 20]) }] });
+
+    const png = solidPng([220, 20, 20]);
+    expect(provider.evaluateCalls[0]?.images).toEqual([
+      { mediaType: "image/png", base64: png.toString("base64"), byteLength: png.byteLength },
+    ]);
+  });
+
+  it("sends no images field when the input has none", async () => {
+    const provider = new MockJevProvider({ evaluate: () => noulResult });
+    await new JevCore({ provider, defaultModel: "m" }).evaluate(noulOnly);
+
+    expect(provider.evaluateCalls[0]).not.toHaveProperty("images");
+  });
+
+  it("reads image paths through the injected loader", async () => {
+    const provider = new MockJevProvider({ evaluate: () => noulResult });
+    const loaded: string[] = [];
+    const core = new JevCore({
+      provider,
+      defaultModel: "m",
+      loadImageFile: async (path) => {
+        loaded.push(path);
+        return solidPng([20, 40, 220]);
+      },
+    });
+
+    await core.evaluate({ ...noulOnly, images: [{ path: "/photos/blue.png" }] });
+
+    expect(loaded).toEqual(["/photos/blue.png"]);
+    expect(provider.evaluateCalls[0]?.images?.[0]?.mediaType).toBe("image/png");
+  });
+
+  it.each<[string, unknown, RegExp]>([
+    ["a path when no loader is configured", [{ path: "/photos/a.png" }], /images\[0\]: image paths are disabled on this server/],
+    ["an invalid data URL", [{ data: "data:image/png;base64,aGVsbG8=" }], /images\[0\]: not a PNG, JPEG or WebP image/],
+    ["five images", Array.from({ length: 5 }, () => ({ data: pngDataUrl([1, 2, 3]) })), /images: must contain at most 4 images/],
+    ["an empty list", [], /images: must contain at least one image when present/],
+    ["a source with both data and path", [{ data: pngDataUrl([1, 2, 3]), path: "/a.png" }], /images\.0/],
+    ["a remote URL source", [{ url: "https://example.com/a.png" }], /images\.0/],
+  ])("rejects %s before calling the provider", async (_label, images, message) => {
+    const provider = new MockJevProvider({ evaluate: () => noulResult });
+    const error = await captureError(new JevCore({ provider, defaultModel: "m" }).evaluate({ ...noulOnly, images }));
+
+    expect(error.kind).toBe("invalid_input");
+    expect(error.message).toMatch(message);
+    expect(provider.evaluateCalls).toHaveLength(0);
+  });
+
+  it("rejects image parts hidden in state", async () => {
+    const provider = new MockJevProvider({ evaluate: () => noulResult });
+    const state = [{ type: "image_url", image_url: { url: pngDataUrl([1, 2, 3]) } }, "caption"];
+
+    const error = await captureError(new JevCore({ provider, defaultModel: "m" }).evaluate({ ...noulOnly, state }));
+
+    expect(error.kind).toBe("invalid_input");
+    expect(error.message).toMatch(/state contains an image part; pass images in the images field/);
+    expect(provider.evaluateCalls).toHaveLength(0);
   });
 });

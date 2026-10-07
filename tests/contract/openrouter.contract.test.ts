@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { JevError } from "../../src/core/errors.js";
 import { JevCore } from "../../src/core/jev-core.js";
+import { pngDataUrl } from "../support/images.js";
 import { hasOpenRouterKey, openRouterProviderFromEnv } from "../support/providers-from-env.js";
 
 // OpenRouter System One API behavior observed on 2026-10-07; see docs/openrouter-notes.md.
@@ -84,5 +85,67 @@ describe.skipIf(!hasOpenRouterKey)("OpenRouter System One contract", () => {
     const names = models.map((model) => model.name);
     for (const model of MODELS) expect(names).toContain(model);
     for (const model of models) expect(model.releaseDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+});
+
+describe.skipIf(!hasOpenRouterKey)("OpenRouter System One contract: images", () => {
+  const questions = {
+    color: {
+      type: "choice" as const,
+      instructions: "What is the dominant color of the attached image?",
+      criteria: { red: null, green: null, blue: null, no_image: "No image is visible" },
+    },
+  };
+
+  it.each([
+    ["cloudflare/clef-flash", [220, 20, 20], "red"],
+    ["cloudflare/clef-flash", [20, 40, 220], "blue"],
+    ["cloudflare/clef", [20, 180, 40], "green"],
+  ] as const)("%s sees a %j image as %s", async (model, rgb, expected) => {
+    const core = new JevCore({ provider: openRouterProviderFromEnv(), defaultModel: model });
+
+    const result = await core.evaluate({
+      state: "Look at the attached image.",
+      questions,
+      images: [{ data: pngDataUrl([...rgb]) }],
+    });
+
+    const answer = result.answers.color;
+    expect(answer?.type).toBe("choice");
+    expect(answer?.type === "choice" && answer.choice).toBe(expected);
+  });
+
+  it("refuses to send an image to typesafe/jev-1.13, which reads text only", async () => {
+    const core = new JevCore({ provider: openRouterProviderFromEnv(), defaultModel: "typesafe/jev-1.13" });
+
+    const error = await core
+      .evaluate({ state: "x", questions, images: [{ data: pngDataUrl([220, 20, 20]) }] })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(JevError);
+    expect((error as JevError).kind).toBe("invalid_input");
+    expect((error as JevError).message).toContain("does not accept images");
+  });
+
+  // Not in the System One reference: a top-level `images` field (Cloudflare's format)
+  // is rejected, and the error names the `state` array placement this server uses.
+  it("rejects a top-level images field and asks for image parts in state", async () => {
+    const response = await fetch("https://openrouter.ai/api/v1/systemone", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY?.trim()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        model: "cloudflare/clef-flash",
+        state: "x",
+        questions,
+        images: [pngDataUrl([220, 20, 20])],
+      }),
+    });
+    const body = (await response.json()) as { error?: { message?: string } };
+
+    expect(response.status).toBe(400);
+    expect(body.error?.message).toContain("Put each image in the `state` array");
   });
 });

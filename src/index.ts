@@ -11,6 +11,8 @@ export type {
   JevChoiceAnswer,
   JevEvaluateRequest,
   JevEvaluateResult,
+  JevImage,
+  JevImageMediaType,
   JevModel,
   JevModelList,
   JevNoulAnswer,
@@ -25,10 +27,20 @@ export {
   type JevChoiceQuestion,
   type JevDescription,
   type JevEvaluateInput,
+  type JevImageSource,
   type JevNoulQuestion,
   type JevQuestion,
   type JevScoreQuestion,
 } from "./schemas/evaluate.js";
+export {
+  createDirectoryImageLoader,
+  type ImageFileLoader,
+} from "./images/directory-image-loader.js";
+export {
+  MAX_IMAGE_BYTES,
+  MAX_IMAGES,
+  MAX_TOTAL_IMAGE_BYTES,
+} from "./images/image-data.js";
 export { createJevMcpServer } from "./mcp/server.js";
 export {
   DEFAULT_RETRY_POLICY,

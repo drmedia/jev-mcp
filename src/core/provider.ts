@@ -16,11 +16,22 @@ export interface JevRequestOptions {
   signal?: AbortSignal;
 }
 
+export type JevImageMediaType = "image/png" | "image/jpeg" | "image/webp";
+
+/** An image already validated by JEV Core; the media type was detected from the bytes. */
+export interface JevImage {
+  mediaType: JevImageMediaType;
+  base64: string;
+  byteLength: number;
+}
+
 /** A validated evaluation request with the model already resolved. */
 export interface JevEvaluateRequest {
   state: JevDescription;
   model: string;
   questions: Record<string, JevQuestion>;
+  /** Present only when the input had images. Providers must reject them if the model cannot read images. */
+  images?: JevImage[];
 }
 
 export interface JevNoulAnswer {

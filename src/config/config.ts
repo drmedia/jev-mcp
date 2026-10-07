@@ -1,3 +1,4 @@
+import { delimiter, isAbsolute } from "node:path";
 import { z } from "zod";
 import { JevError } from "../core/errors.js";
 
@@ -20,6 +21,8 @@ export interface JevConfig {
   jevModel: string;
   /** Retries after the first attempt for transient failures; 0 disables retries. */
   jevMaxRetries: number;
+  /** Absolute directories `images[].path` may read from; empty disables image paths. */
+  imageDirectories: string[];
 }
 
 // Empty strings (e.g. `TYPESAFE_BASE_URL=` copied from .env.example) count as unset.
@@ -55,6 +58,20 @@ const envSchema = z.object({
     "OPENROUTER_BASE_URL must be the API root without /v1 (for example https://openrouter.ai/api)",
   ),
   JEV_MODEL: optionalString.transform((value) => value ?? DEFAULT_JEV_MODEL),
+  // Separated by the platform path delimiter: ";" on Windows, ":" elsewhere.
+  JEV_IMAGE_DIRS: optionalString
+    .transform((value) =>
+      value === undefined
+        ? []
+        : value
+            .split(delimiter)
+            .map((entry) => entry.trim())
+            .filter((entry) => entry !== ""),
+    )
+    .refine(
+      (entries) => entries.every((entry) => isAbsolute(entry)),
+      `JEV_IMAGE_DIRS entries must be absolute paths separated by "${delimiter}"`,
+    ),
   JEV_MAX_RETRIES: optionalString.pipe(
     z
       .string()
@@ -95,5 +112,10 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): JevConfig {
       break;
   }
 
-  return { provider, jevModel: data.JEV_MODEL, jevMaxRetries: data.JEV_MAX_RETRIES };
+  return {
+    provider,
+    jevModel: data.JEV_MODEL,
+    jevMaxRetries: data.JEV_MAX_RETRIES,
+    imageDirectories: data.JEV_IMAGE_DIRS,
+  };
 }
