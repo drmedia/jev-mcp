@@ -7,7 +7,11 @@ include breaking changes.
 
 ## [Unreleased]
 
-Phases 12 and 13 defined in AGENTS.md.
+## [0.6.0] - 2026-10-08
+
+Completes Phases 12 and 13 defined in [AGENTS.md](AGENTS.md): clients choose the provider
+per request, and the server sends usage guidance to the calling AI. Also fixes the local
+provider through Docker.
 
 ### Added
 
@@ -222,7 +226,8 @@ First release. Completes MVP phases 1-5 defined in [AGENTS.md](AGENTS.md).
   [docs/typesafe-api-notes.md](docs/typesafe-api-notes.md).
 - GitHub Actions CI: typecheck, unit tests and build on Node 20 and 22.
 
-[Unreleased]: https://github.com/drmedia/jev-mcp/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/drmedia/jev-mcp/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.6.0
 [0.5.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.5.0
 [0.4.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.4.0
 [0.3.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.3.0
