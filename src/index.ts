@@ -1,5 +1,7 @@
 export {
   loadConfig,
+  loadHttpConfig,
+  type HttpConfig,
   type JevConfig,
   type ProviderConfig,
   type ProviderName,
@@ -69,6 +71,14 @@ export {
   type RetryPolicy,
 } from "./providers/retrying-provider.js";
 export { createProvider, type CreateProviderOptions } from "./providers/create-provider.js";
+export {
+  createJevHttpRequestListener,
+  createJevHttpServer,
+  HTTP_BIND_ADDRESS,
+  MAX_HTTP_BODY_BYTES,
+  MCP_PATH,
+  type JevHttpServerOptions,
+} from "./transport/http-server.js";
 export {
   LocalProvider,
   type LocalProviderOptions,

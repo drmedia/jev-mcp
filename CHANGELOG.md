@@ -7,6 +7,27 @@ include breaking changes.
 
 ## [Unreleased]
 
+Phase 10 defined in AGENTS.md.
+
+### Added
+
+- Streamable HTTP entry point (`npm run start:http`, `jev-mcp-http`): the same tools
+  at `http://127.0.0.1:8098/mcp`, so several local clients can share one server.
+  Stateless JSON responses through the SDK's `StreamableHTTPServerTransport`,
+  following the MCP 2025-11-25 transport specification; `GET` and `DELETE` return 405.
+- Security for the HTTP server: listens on `127.0.0.1` only; every request needs
+  `Authorization: Bearer <JEV_HTTP_TOKEN>` (at least 32 characters, constant-time
+  comparison, never logged, not accepted in the URL); `Host` and `Origin` must be
+  loopback values for the server's port (DNS rebinding protection); bodies are
+  limited to 32 MiB.
+- `JEV_HTTP_TOKEN` and `PORT` (default 8098), read only by the HTTP entry point.
+- Verified end to end over HTTP with Claude Code 2.1.289, codex-cli 0.160.0 and
+  VS Code Copilot agent mode (VS Code 1.139.1).
+
+### Changed
+
+- Both entry points build JEV Core through the shared `src/transport/runtime.ts`.
+
 ## [0.4.0] - 2026-10-07
 
 Completes Phase 9 defined in [AGENTS.md](AGENTS.md): batch evaluation. Also adds a

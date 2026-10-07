@@ -190,3 +190,41 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): JevConfig {
     logLevel: data.JEV_LOG_LEVEL,
   };
 }
+
+export const DEFAULT_HTTP_PORT = 8098;
+/** A token shorter than this is rejected; generate one with crypto.randomBytes(32). */
+export const MIN_HTTP_TOKEN_LENGTH = 32;
+
+/** Settings that only the Streamable HTTP entry point needs. */
+export interface HttpConfig {
+  port: number;
+  /** Shared secret every request must send as `Authorization: Bearer <token>`. */
+  token: string;
+}
+
+const portMessage = "PORT must be a whole number from 1 to 65535";
+
+const httpEnvSchema = z.object({
+  PORT: optionalString.pipe(
+    z
+      .string()
+      .regex(/^\d+$/, portMessage)
+      .transform(Number)
+      .pipe(z.number().min(1, portMessage).max(65_535, portMessage))
+      .optional()
+      .transform((value) => value ?? DEFAULT_HTTP_PORT),
+  ),
+  JEV_HTTP_TOKEN: optionalString,
+});
+
+/** Reads the HTTP entry point's settings. Messages name variables only, never values. */
+export function loadHttpConfig(env: NodeJS.ProcessEnv = process.env): HttpConfig {
+  const parsed = httpEnvSchema.safeParse(env);
+  if (!parsed.success) invalid(parsed.error.issues.map((issue) => issue.message).join("; "));
+  const { PORT: port, JEV_HTTP_TOKEN: token } = parsed.data;
+  if (token === undefined) invalid("JEV_HTTP_TOKEN is required for the HTTP server");
+  if (token.length < MIN_HTTP_TOKEN_LENGTH) {
+    invalid(`JEV_HTTP_TOKEN must be at least ${MIN_HTTP_TOKEN_LENGTH} characters`);
+  }
+  return { port, token };
+}

@@ -123,8 +123,8 @@ Later phases may include:
 - concurrency control (implemented for batches: Phase 9, `JEV_MAX_CONCURRENCY`)
 - telemetry
 - usage and cost metadata (implemented: token usage, and cost when the provider reports it)
-- authentication
-- Streamable HTTP transport
+- authentication (implemented for local HTTP: Phase 10, bearer token; OAuth is future)
+- Streamable HTTP transport (implemented locally: Phase 10, `src/transport/http.ts`; remote deployment is future)
 - Docker deployment
 - calibration utilities
 - domain adapters
@@ -172,6 +172,8 @@ Later production transport should support:
 ```text
 Streamable HTTP
 ```
+
+Streamable HTTP is implemented for local use (Phase 10): `src/transport/http.ts` listens on `127.0.0.1` only, statelessly, with a bearer token. Both entry points share `src/transport/runtime.ts`, so they serve identical tools.
 
 Do not build new functionality around deprecated SSE-only transport.
 
@@ -377,9 +379,10 @@ OPENROUTER_BASE_URL
 JEV_LOCAL_BASE_URL
 JEV_LOCAL_API_KEY
 JEV_MODEL
+JEV_HTTP_TOKEN
 ```
 
-`TYPESAFE_API_KEY`, `OPENROUTER_API_KEY` and `JEV_LOCAL_API_KEY` are secrets. A provider never falls back to another provider's key.
+`TYPESAFE_API_KEY`, `OPENROUTER_API_KEY`, `JEV_LOCAL_API_KEY` and `JEV_HTTP_TOKEN` are secrets. A provider never falls back to another provider's key.
 
 Never log:
 
@@ -506,12 +509,8 @@ JEV_IMAGE_DIRS
 JEV_MAX_INPUT_CHARS
 JEV_TIMEOUT_MS
 JEV_LOG_LEVEL
-```
-
-Future configuration may include:
-
-```text
-PORT
+JEV_HTTP_TOKEN   (HTTP entry point only)
+PORT             (HTTP entry point only)
 ```
 
 Every new variable must be added to `src/config/config.ts`, `.env.example` (empty value) and the README configuration table.
@@ -791,6 +790,17 @@ Phase 9 (batch evaluation) is complete when:
 - each item reports its own answers or its own error in input order; a failed item never receives fabricated answers and does not hide the results of other items,
 - after an error that every remaining item would also hit (`configuration`, `authentication`, `authorization`, `payment_required`), the remaining items are not sent and are reported as skipped,
 - total usage adds up the successful items only, and a total cost is reported only when every successful item reported one,
+- `main` passes CI.
+
+Phase 10 (local Streamable HTTP transport) is complete when:
+
+- a second entry point, `src/transport/http.ts`, serves the same MCP tools over Streamable HTTP at `/mcp`, beside the unchanged stdio entry point; JEV Core, the tool definitions and the providers are unchanged,
+- the transport follows the current MCP Streamable HTTP specification (2025-11-25) through the SDK's `StreamableHTTPServerTransport`, statelessly: POST carries JSON-RPC messages, and GET and DELETE return 405 because the server offers no SSE stream and no sessions,
+- the server binds only to `127.0.0.1`, rejects requests whose `Host` is not a loopback name for its port, and rejects with 403 any request whose `Origin` header is present and is not a loopback origin for its port, to prevent DNS rebinding,
+- every request must carry `Authorization: Bearer <JEV_HTTP_TOKEN>`; the token comes from the environment, must be at least 32 characters, is compared in constant time, is never logged, and a missing or wrong token gets 401; tokens in the URL query string are not accepted,
+- `PORT` selects the port (default 8098), request bodies are limited in size, and configuration is read through the configuration module,
+- the HTTP entry point is verified end to end with an MCP client over HTTP, and at least one real MCP client (Claude Code) calls the tools through it,
+- OAuth, remote binding, TLS and cloud deployment remain out of scope; they belong to a later deployment phase,
 - `main` passes CI.
 
 ---

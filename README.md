@@ -43,6 +43,8 @@ npm run build
 | `JEV_MAX_CONCURRENCY` | no | `4` (1 to 16) provider requests at a time in `jev.evaluate_batch` |
 | `JEV_TIMEOUT_MS` | no | `30000` (1000 to 600000) milliseconds per provider request attempt |
 | `JEV_LOG_LEVEL` | no | `warn` (or `error`, `info`, `debug`); see [Logging](#logging) |
+| `JEV_HTTP_TOKEN` | for `npm run start:http` | — (at least 32 characters; see [Streamable HTTP](#streamable-http)) |
+| `PORT` | no | `8098`, port of the Streamable HTTP server |
 
 ## Checks before sending
 
@@ -144,6 +146,17 @@ reads could ask it to send a private file. Only files inside the listed director
 Verified with Claude Code, Codex CLI and ChatGPT (through OpenAI's Secure MCP
 Tunnel). Setup for each client, plus VS Code and Claude Desktop:
 [docs/clients.md](docs/clients.md).
+
+### Streamable HTTP
+
+Besides stdio, `npm run start:http` serves the same tools over Streamable HTTP at
+`http://127.0.0.1:8098/mcp`, so several clients on this machine can share one
+server. It needs `JEV_HTTP_TOKEN` (at least 32 characters), which every request
+must send as `Authorization: Bearer <token>`. It listens on `127.0.0.1` only and
+rejects requests whose `Host` or `Origin` is not a loopback address, which blocks
+DNS rebinding. It is stateless: no sessions and no event stream. Remote access,
+TLS and OAuth are not supported. Client setup:
+[docs/clients.md](docs/clients.md#streamable-http-local).
 
 ## Retries
 
@@ -294,6 +307,7 @@ in one request.
 | `npm run test:contract` | Provider tests against the real TypeSafe API (uses `.env`) |
 | `npm run test:e2e` | Build, then drive the stdio server over MCP against the real API |
 | `npm start` | Start the stdio server |
+| `npm run start:http` | Start the Streamable HTTP server (needs `JEV_HTTP_TOKEN`) |
 
 GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs
 `typecheck`, `test` and `build` on Node 20 and 22 for every push to `main` and every
