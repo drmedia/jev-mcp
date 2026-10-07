@@ -47,6 +47,7 @@ the level range, and probabilities and confidence within 0..1. A mismatch is an
 | --- | --- | --- |
 | 422 validation | OpenAPI `HTTPValidationError` | `{ "detail": [{ "loc": [...], "msg": "...", "type": "..." }] }` |
 | Auth failure | Observed only | `{ "detail": { "error_type": "authentication_error", "message": "..." } }` |
+| Unknown model (400) | Observed only | `{ "detail": { "error_type": "api_usage_error", "message": "Unknown model: <name>" } }` |
 
 The docs also list `429 Too Many Requests` and `529 Overloaded` without a body schema.
 
@@ -60,7 +61,9 @@ The docs also list `429 Too Many Requests` and `529 Overloaded` without a body s
 - **`release_date` is a timestamp, not a date.** OpenAPI describes `release_date`
   as `YYYY-MM-DD`, but the live API returns ISO 8601 timestamps such as
   `2026-09-10T18:38:01.391457+00:00`. The value is passed through as a string
-  without format validation.
+  without format validation. `tests/contract/typesafe-models.contract.test.ts`
+  pins the timestamp format.
 - **Unknown model returns 400.** `POST /v1/systemone` with an unknown `model`
-  returns `400` with the message `Unknown model: <name>`. The docs list no 400
-  response. It maps to `invalid_request`.
+  returns `400` with `error_type: "api_usage_error"` and the message
+  `Unknown model: <name>`. The docs list no 400 response. It maps to
+  `invalid_request`; `tests/contract/typesafe-evaluate.contract.test.ts` pins it.

@@ -24,6 +24,22 @@ describe("TypeSafe /v1/models contract", () => {
     }
   });
 
+  // OpenAPI documents release_date as YYYY-MM-DD; the live API returns ISO 8601
+  // timestamps. This pins the observed format so a change on either side is noticed.
+  it.skipIf(!hasApiKey)("returns release dates as ISO 8601 timestamps", async () => {
+    const config = loadConfig();
+    const provider = new TypeSafeProvider({
+      apiKey: config.typesafeApiKey,
+      baseUrl: config.typesafeBaseUrl,
+    });
+
+    const result = await provider.models();
+
+    for (const model of result.models) {
+      expect(model.releaseDate).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?([+-]\d{2}:\d{2}|Z)$/);
+    }
+  });
+
   // Docs list 401 for a missing key; the live API answers 403 + authentication_error.
   // This pins the observed behavior so a change on either side is noticed.
   it("reports a missing API key as an authentication error", async () => {
