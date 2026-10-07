@@ -747,3 +747,34 @@ Probabilistic Decisions
 ```
 
 Domain-specific meaning belongs outside JEV Core.
+
+
+## Language Policy
+
+All project content must be written in English.
+
+This applies to:
+
+- source code identifiers
+- code comments
+- documentation
+- README files
+- AGENTS.md
+- CLAUDE.md
+- test names
+- test descriptions
+- error messages
+- log messages
+- configuration comments
+- Git branch names
+- Git commit messages
+- pull request titles and descriptions
+- issue titles and descriptions
+- release notes
+- generated documentation
+
+Do not add Korean text to the repository unless a task explicitly requires Korean localization or Korean test data.
+
+When discussing implementation inside coding agents, use English for technical output and repository-facing content.
+
+User-facing conversation outside the repository may use the user's preferred language, but all files and Git artifacts created for this project must remain English-only.
