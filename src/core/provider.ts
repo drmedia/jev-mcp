@@ -3,6 +3,8 @@ import type { JevDescription, JevQuestion } from "../schemas/evaluate.js";
 /** A model or alias the provider accepts in an evaluation request. */
 export interface JevModel {
   name: string;
+  /** The provider that serves the model; set by JEV Core, not by providers. */
+  provider?: string;
   /** Absent when the provider does not describe its models (for example a local server). */
   description?: string;
   /** Release date as reported by the provider; format varies (see docs/typesafe-api-notes.md). Absent when not reported. */
@@ -11,6 +13,8 @@ export interface JevModel {
 
 export interface JevModelList {
   models: JevModel[];
+  /** Providers whose model list could not be read; set by JEV Core when listing several. */
+  errors?: { provider: string; kind: string; message: string }[];
 }
 
 export interface JevRequestOptions {
@@ -67,6 +71,8 @@ export interface JevUsage {
 }
 
 export interface JevEvaluateResult {
+  /** The provider that answered; set by JEV Core, not by providers. */
+  provider?: string;
   /** The model that answered; may be a versioned ID when an alias was requested. */
   model: string;
   answers: Record<string, JevAnswer>;

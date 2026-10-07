@@ -29,10 +29,22 @@ import type {
   JevRequestOptions,
 } from "./provider.js";
 
-export interface JevCoreOptions {
+/** A provider clients may select by name, besides the default one. */
+export interface JevProviderEntry {
   provider: JevProvider;
-  /** Used when an evaluate input does not name a model. */
+  /** Used when a request selects this provider without a model; without it, a model is required. */
+  defaultModel?: string;
+}
+
+export interface JevCoreOptions {
+  /** The default provider, used when an input does not name one. */
+  provider: JevProvider;
+  /** Used when an input selects the default provider without naming a model. */
   defaultModel: string;
+  /** Name clients use for the default provider. Defaults to "default". */
+  providerName?: string;
+  /** More providers clients may select with `provider`, keyed by name. */
+  additionalProviders?: Record<string, JevProviderEntry>;
   /** Reads `images[].path` entries. Without it, image paths are rejected. */
   loadImageFile?: ImageFileLoader;
   /**
@@ -48,6 +60,13 @@ export interface JevCoreOptions {
 }
 
 const DEFAULT_MAX_CONCURRENCY = 4;
+
+/** The provider a request goes to, and the request built for it. */
+interface Prepared {
+  providerName: string;
+  provider: JevProvider;
+  request: JevEvaluateRequest;
+}
 
 function formatIssues(issues: readonly z.core.$ZodIssue[]): string {
   return issues
@@ -119,8 +138,8 @@ export function findAnswerProblems(
 
 /** Provider-independent JEV operations used by the MCP tool layer. */
 export class JevCore {
-  readonly #provider: JevProvider;
-  readonly #defaultModel: string;
+  readonly #defaultProviderName: string;
+  readonly #providers: ReadonlyMap<string, JevProviderEntry>;
   readonly #loadImageFile: ImageFileLoader | undefined;
   readonly #maxInputChars: number;
   readonly #maxConcurrency: number;
@@ -128,15 +147,67 @@ export class JevCore {
 
   constructor(options: JevCoreOptions) {
     this.#logger = options.logger ?? silentLogger;
-    this.#provider = options.provider;
-    this.#defaultModel = options.defaultModel;
+    this.#defaultProviderName = options.providerName ?? "default";
+    const providers = new Map<string, JevProviderEntry>([
+      [this.#defaultProviderName, { provider: options.provider, defaultModel: options.defaultModel }],
+    ]);
+    for (const [name, entry] of Object.entries(options.additionalProviders ?? {})) {
+      if (!providers.has(name)) providers.set(name, entry);
+    }
+    this.#providers = providers;
     this.#loadImageFile = options.loadImageFile;
     this.#maxInputChars = options.maxInputChars ?? 0;
     this.#maxConcurrency = Math.max(1, options.maxConcurrency ?? DEFAULT_MAX_CONCURRENCY);
   }
 
-  models(options?: JevRequestOptions): Promise<JevModelList> {
-    return this.#provider.models(options);
+  /** Provider names clients may pass as `provider`, the default first. */
+  get providerNames(): string[] {
+    return [...this.#providers.keys()];
+  }
+
+  get defaultProviderName(): string {
+    return this.#defaultProviderName;
+  }
+
+  /**
+   * Lists the models of one provider, or of every provider, tagged with the provider
+   * name. A provider that fails is reported in `errors`; the call fails only when
+   * every requested provider fails.
+   */
+  async models(options?: JevRequestOptions, providerName?: string): Promise<JevModelList> {
+    const names = providerName === undefined ? this.providerNames : [this.#entry(providerName).name];
+    const settled = await Promise.allSettled(
+      names.map((name) => this.#providers.get(name)!.provider.models(options)),
+    );
+    const models: JevModelList["models"] = [];
+    const errors: NonNullable<JevModelList["errors"]> = [];
+    let firstFailure: unknown;
+    for (const [index, outcome] of settled.entries()) {
+      const name = names[index]!;
+      if (outcome.status === "fulfilled") {
+        models.push(...outcome.value.models.map((model) => ({ ...model, provider: name })));
+        continue;
+      }
+      // Unexpected errors (not provider errors) are never turned into a partial list.
+      if (!(outcome.reason instanceof JevError)) throw outcome.reason;
+      firstFailure ??= outcome.reason;
+      errors.push({ provider: name, kind: outcome.reason.kind, message: outcome.reason.message });
+    }
+    if (errors.length === names.length) throw firstFailure;
+    return { models, ...(errors.length > 0 && { errors }) };
+  }
+
+  /** Resolves a provider name; unknown names are rejected with the available ones. */
+  #entry(name: string | undefined): JevProviderEntry & { name: string } {
+    const resolved = name ?? this.#defaultProviderName;
+    const entry = this.#providers.get(resolved);
+    if (entry === undefined) {
+      throw new JevError(
+        "invalid_input",
+        `Unknown provider "${resolved}"; this server offers: ${this.providerNames.join(", ")} (JEV_PROVIDERS adds more)`,
+      );
+    }
+    return { ...entry, name: resolved };
   }
 
   /** Validates untrusted input, resolves the model and checks the provider's answers. */
@@ -162,16 +233,17 @@ export class JevCore {
         details: parsed.error.issues,
       });
     }
-    const { items, model, questions } = parsed.data;
+    const { items, model, questions, provider } = parsed.data;
 
-    const requests: JevEvaluateRequest[] = [];
+    const prepared: Prepared[] = [];
     for (const [index, item] of items.entries()) {
       try {
-        requests.push(
+        prepared.push(
           await this.#prepare({
             state: item.state,
             questions,
             ...(model !== undefined && { model }),
+            ...(provider !== undefined && { provider }),
             ...(item.images !== undefined && { images: item.images }),
           }),
         );
@@ -181,15 +253,15 @@ export class JevCore {
       }
     }
 
-    const results = await this.#runBatch(items, requests, options);
+    const results = await this.#runBatch(items, prepared, options);
     const summary = { ok: 0, error: 0, skipped: 0 };
     for (const result of results) summary[result.status] += 1;
-    return { results, summary, usage: totalBatchUsage(results) };
+    return { provider: this.#entry(provider).name, results, summary, usage: totalBatchUsage(results) };
   }
 
   async #runBatch(
     items: readonly JevBatchItem[],
-    requests: readonly JevEvaluateRequest[],
+    requests: readonly Prepared[],
     options: JevRequestOptions | undefined,
   ): Promise<JevBatchItemResult[]> {
     const results: JevBatchItemResult[] = new Array(requests.length);
@@ -239,7 +311,15 @@ export class JevCore {
   }
 
   /** Checks everything that can be checked locally and builds the provider request. */
-  async #prepare(input: JevEvaluateInput): Promise<JevEvaluateRequest> {
+  async #prepare(input: JevEvaluateInput): Promise<Prepared> {
+    const entry = this.#entry(input.provider);
+    const model = input.model ?? entry.defaultModel;
+    if (model === undefined) {
+      throw new JevError(
+        "invalid_input",
+        `Invalid evaluate input: model is required when provider is ${entry.name}; jev.models lists its models`,
+      );
+    }
     if (this.#maxInputChars > 0) {
       const size = JSON.stringify({ state: input.state, questions: input.questions }).length;
       if (size > this.#maxInputChars) {
@@ -256,15 +336,15 @@ export class JevCore {
       );
     }
     const images = input.images ? await this.#resolveImages(input.images) : undefined;
-    return this.#toRequest(input, images);
+    return { providerName: entry.name, provider: entry.provider, request: this.#toRequest(input, model, images) };
   }
 
   /** Sends one request and rejects answers that do not match the questions asked. */
-  async #send(request: JevEvaluateRequest, options?: JevRequestOptions): Promise<JevEvaluateResult> {
+  async #send({ providerName, provider, request }: Prepared, options?: JevRequestOptions): Promise<JevEvaluateResult> {
     const started = Date.now();
-    const subject = `evaluate model=${request.model} questions=${Object.keys(request.questions).length} images=${request.images?.length ?? 0}`;
+    const subject = `evaluate provider=${providerName} model=${request.model} questions=${Object.keys(request.questions).length} images=${request.images?.length ?? 0}`;
     try {
-      const result = await this.#provider.evaluate(request, options);
+      const result = await provider.evaluate(request, options);
       const problems = findAnswerProblems(request, result);
       if (problems.length > 0) {
         throw new JevError(
@@ -277,7 +357,7 @@ export class JevCore {
       this.#logger.debug(
         `${subject} ok in ${Date.now() - started} ms (answered by ${result.model}, tokens ${inputTokens}/${outputTokens}${costUsd !== undefined ? `, cost ${costUsd} USD` : ""})`,
       );
-      return result;
+      return { ...result, provider: providerName };
     } catch (error) {
       if (error instanceof JevError) {
         this.#logger.debug(`${subject} failed in ${Date.now() - started} ms with ${error.kind}`);
@@ -310,10 +390,10 @@ export class JevCore {
     return images;
   }
 
-  #toRequest(input: JevEvaluateInput, images: JevImage[] | undefined): JevEvaluateRequest {
+  #toRequest(input: JevEvaluateInput, model: string, images: JevImage[] | undefined): JevEvaluateRequest {
     return {
       state: input.state,
-      model: input.model ?? this.#defaultModel,
+      model,
       questions: input.questions,
       ...(images !== undefined && { images }),
     };

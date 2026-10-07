@@ -9,7 +9,7 @@ import {
   jevScoreInputSchema,
 } from "../schemas/convenience.js";
 import { jevEvaluateBatchInputSchema, MAX_BATCH_ITEMS } from "../schemas/batch.js";
-import { jevEvaluateInputSchema, type JevQuestion } from "../schemas/evaluate.js";
+import { jevEvaluateInputSchema, jevModelsInputSchema, type JevQuestion } from "../schemas/evaluate.js";
 import {
   jevChoiceResultSchema,
   jevEvaluateBatchResultSchema,
@@ -41,6 +41,7 @@ ${SHARED_SINGLE_QUESTION_HELP}`;
 
 interface SingleQuestionInput {
   state: unknown;
+  provider?: string | undefined;
   model?: string | undefined;
   instructions: unknown;
   criteria?: unknown;
@@ -54,10 +55,11 @@ async function evaluateSingleQuestion(
   input: SingleQuestionInput,
   options: JevRequestOptions,
 ): Promise<Record<string, unknown>> {
-  const { state, model, instructions, criteria, images } = input;
+  const { state, provider, model, instructions, criteria, images } = input;
   const result = await core.evaluate(
     {
       state,
+      ...(provider !== undefined && { provider }),
       ...(model !== undefined && { model }),
       ...(images !== undefined && { images }),
       questions: {
@@ -71,7 +73,12 @@ async function evaluateSingleQuestion(
     options,
   );
   // JevCore guarantees exactly one answer of the requested type.
-  return { model: result.model, answer: result.answers[SINGLE_QUESTION_ID], usage: result.usage };
+  return {
+    provider: result.provider,
+    model: result.model,
+    answer: result.answers[SINGLE_QUESTION_ID],
+    usage: result.usage,
+  };
 }
 
 function registerSingleQuestionTool(
@@ -129,12 +136,22 @@ Each item is a separate provider request and is billed separately. Every item is
 
 ${IMAGES_HELP.replace("judged together with `state`", "judged together with the item's `state`")}`;
 
+/** Describes the providers this server offers; tool descriptions are built at registration. */
+function providerHelp(core: JevCore): string {
+  const names = core.providerNames;
+  if (names.length === 1) {
+    return `\`provider\` is optional; this server offers only "${core.defaultProviderName}".`;
+  }
+  return `\`provider\` is optional and selects where the request goes: one of ${names.map((name) => `"${name}"`).join(", ")} (default "${core.defaultProviderName}"). Model names differ per provider; jev.models lists them with their provider. OpenRouter needs an explicit \`model\`, such as cloudflare/clef-flash or typesafe/jev-1.13.`;
+}
+
 export function registerJevTools(server: McpServer, core: JevCore, logger: Logger): void {
+  const providers = providerHelp(core);
   server.registerTool(
     "jev.evaluate",
     {
       title: "Evaluate with Jev",
-      description: EVALUATE_DESCRIPTION,
+      description: `${EVALUATE_DESCRIPTION}\n\n${providers}`,
       inputSchema: jevEvaluateInputSchema,
       outputSchema: jevEvaluateResultSchema,
       annotations: { readOnlyHint: true, openWorldHint: true },
@@ -152,7 +169,7 @@ export function registerJevTools(server: McpServer, core: JevCore, logger: Logge
     "jev.evaluate_batch",
     {
       title: "Evaluate many items with Jev",
-      description: EVALUATE_BATCH_DESCRIPTION,
+      description: `${EVALUATE_BATCH_DESCRIPTION}\n\n${providers}`,
       inputSchema: jevEvaluateBatchInputSchema,
       outputSchema: jevEvaluateBatchResultSchema,
       annotations: { readOnlyHint: true, openWorldHint: true },
@@ -170,14 +187,14 @@ export function registerJevTools(server: McpServer, core: JevCore, logger: Logge
     "jev.models",
     {
       title: "List Jev models",
-      description:
-        "List the model names and aliases the configured provider accepts in jev.evaluate's `model` field.",
+      description: `List the model names and aliases each provider accepts in the \`model\` field, tagged with their \`provider\`. Pass \`provider\` to list one provider only. A provider that cannot be reached appears in \`errors\` instead of failing the whole list. ${providers}`,
+      inputSchema: jevModelsInputSchema,
       outputSchema: jevModelListSchema,
       annotations: { readOnlyHint: true, openWorldHint: true },
     },
-    async (extra) => {
+    async (input, extra) => {
       try {
-        return toolSuccess({ ...(await core.models({ signal: extra.signal })) });
+        return toolSuccess({ ...(await core.models({ signal: extra.signal }, input.provider)) });
       } catch (error) {
         return toolError(error, extra.signal, logger);
       }
@@ -188,7 +205,7 @@ export function registerJevTools(server: McpServer, core: JevCore, logger: Logge
     name: "jev.noul",
     title: "Yes/no question with Jev",
     type: "noul",
-    description: NOUL_DESCRIPTION,
+    description: `${NOUL_DESCRIPTION} ${providers}`,
     inputSchema: jevNoulInputSchema,
     outputSchema: jevNoulResultSchema,
   });
@@ -197,7 +214,7 @@ export function registerJevTools(server: McpServer, core: JevCore, logger: Logge
     name: "jev.choice",
     title: "Choose an option with Jev",
     type: "choice",
-    description: CHOICE_DESCRIPTION,
+    description: `${CHOICE_DESCRIPTION} ${providers}`,
     inputSchema: jevChoiceInputSchema,
     outputSchema: jevChoiceResultSchema,
   });
@@ -206,7 +223,7 @@ export function registerJevTools(server: McpServer, core: JevCore, logger: Logge
     name: "jev.score",
     title: "Score on a scale with Jev",
     type: "score",
-    description: SCORE_DESCRIPTION,
+    description: `${SCORE_DESCRIPTION} ${providers}`,
     inputSchema: jevScoreInputSchema,
     outputSchema: jevScoreResultSchema,
   });

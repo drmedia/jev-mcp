@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { descriptionSchema, imagesSchema, modelSchema, questionsSchema } from "./evaluate.js";
+import { descriptionSchema, imagesSchema, modelSchema, providerNameSchema, questionsSchema } from "./evaluate.js";
 
 /**
  * Items per jev.evaluate_batch call. Each item is one provider request and is billed
@@ -26,6 +26,7 @@ export const jevEvaluateBatchInputSchema = z.strictObject({
       const ids = items.flatMap((item) => (item.id === undefined ? [] : [item.id]));
       return new Set(ids).size === ids.length;
     }, "item ids must be unique"),
+  provider: providerNameSchema.optional(),
   model: modelSchema.optional(),
   questions: questionsSchema,
 });

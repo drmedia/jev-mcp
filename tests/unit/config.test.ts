@@ -31,6 +31,7 @@ describe("loadConfig", () => {
   it("defaults to TypeSafe when only the TypeSafe key is set", () => {
     expect(loadConfig({ TYPESAFE_API_KEY: "test-key" })).toEqual({
       provider: { name: "typesafe", apiKey: "test-key", baseUrl: DEFAULT_TYPESAFE_BASE_URL },
+      additionalProviders: [],
       jevModel: DEFAULT_JEV_MODEL,
       jevMaxRetries: DEFAULT_JEV_MAX_RETRIES,
       imageDirectories: [],
@@ -299,6 +300,46 @@ describe("loadHttpConfig", () => {
   it.each(["0", "65536", "http", "80.5"])("rejects PORT %j", (port) => {
     expect(() => loadHttpConfig({ JEV_HTTP_TOKEN: token, PORT: port })).toThrow(
       /PORT must be a whole number from 1 to 65535/,
+    );
+  });
+});
+
+describe("JEV_PROVIDERS", () => {
+  const keys = { TYPESAFE_API_KEY: "ts-key", OPENROUTER_API_KEY: "or-key" };
+
+  it("adds the listed providers besides the default, without duplicates", () => {
+    const config = loadConfig({ ...keys, JEV_PROVIDERS: " typesafe, openrouter ,local,openrouter" });
+
+    expect(config.provider.name).toBe("typesafe");
+    expect(config.additionalProviders).toEqual([
+      { name: "openrouter", apiKey: "or-key", baseUrl: DEFAULT_OPENROUTER_BASE_URL },
+      { name: "local", apiKey: undefined, baseUrl: DEFAULT_LOCAL_BASE_URL },
+    ]);
+  });
+
+  it("always keeps JEV_PROVIDER as the default, even when it is not listed", () => {
+    const config = loadConfig({ ...keys, JEV_PROVIDER: "openrouter", JEV_PROVIDERS: "typesafe" });
+
+    expect(config.provider.name).toBe("openrouter");
+    expect(config.additionalProviders.map((provider) => provider.name)).toEqual(["typesafe"]);
+  });
+
+  it("enables no extra provider just because its key is present", () => {
+    expect(loadConfig(keys).additionalProviders).toEqual([]);
+  });
+
+  it("requires each listed provider's own key and never borrows another's", () => {
+    expect(configError({ TYPESAFE_API_KEY: "ts-key", JEV_PROVIDERS: "openrouter" }).message).toMatch(
+      /OPENROUTER_API_KEY is required when JEV_PROVIDERS includes openrouter/,
+    );
+    expect(
+      configError({ JEV_PROVIDER: "local", OPENROUTER_API_KEY: "or-key", JEV_PROVIDERS: "typesafe" }).message,
+    ).toMatch(/TYPESAFE_API_KEY is required when JEV_PROVIDERS includes typesafe/);
+  });
+
+  it("rejects unknown names", () => {
+    expect(configError({ ...keys, JEV_PROVIDERS: "typesafe,anthropic" }).message).toMatch(
+      /JEV_PROVIDERS entries must be one of: typesafe, openrouter, local, separated by commas/,
     );
   });
 });

@@ -29,6 +29,8 @@ export interface JevBatchItemSkipped extends JevBatchItemBase {
 export type JevBatchItemResult = JevBatchItemSuccess | JevBatchItemFailure | JevBatchItemSkipped;
 
 export interface JevBatchResult {
+  /** The provider every item was sent to. */
+  provider: string;
   /** One entry per input item, in input order. */
   results: JevBatchItemResult[];
   summary: { ok: number; error: number; skipped: number };

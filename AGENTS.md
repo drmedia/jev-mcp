@@ -123,6 +123,7 @@ Later phases may include:
 - concurrency control (implemented for batches: Phase 9, `JEV_MAX_CONCURRENCY`)
 - telemetry
 - usage and cost metadata (implemented: token usage, and cost when the provider reports it)
+- provider selection per request (implemented: Phase 12, `JEV_PROVIDERS` and `provider`)
 - authentication (implemented for local HTTP: Phase 10, bearer token; OAuth is future)
 - Streamable HTTP transport (implemented locally: Phase 10, `src/transport/http.ts`; remote deployment is future)
 - Docker deployment (implemented locally: Phase 11, `Dockerfile` and `compose.yaml`; registry publishing and cloud deployment are future)
@@ -496,6 +497,7 @@ Implemented environment variables (defaults and ranges are in `README.md` and `.
 
 ```text
 JEV_PROVIDER
+JEV_PROVIDERS
 TYPESAFE_API_KEY
 TYPESAFE_BASE_URL
 OPENROUTER_API_KEY
@@ -812,6 +814,17 @@ Phase 11 (local Docker deployment) is complete when:
 - `.dockerignore` keeps `.env`, `node_modules`, `dist`, tests and Git data out of the build context,
 - the image is verified by building and running it with Compose and calling the tools from a real MCP client (Claude Code), and CI builds the image,
 - cloud deployment, TLS, OAuth and publishing images to a registry remain out of scope,
+- `main` passes CI.
+
+Phase 12 (selectable providers) is complete when:
+
+- `JEV_PROVIDERS` lists the providers one server may use (for example `typesafe,openrouter,local`); `JEV_PROVIDER` stays the default and is always included; every listed provider must have its own credentials, and a missing key is a configuration error, never a silent fallback or a key borrowed from another provider,
+- unset `JEV_PROVIDERS` keeps today's behavior: one provider, and a key that happens to be present does not enable another provider,
+- every question tool (`jev.evaluate`, `jev.evaluate_batch`, `jev.noul`, `jev.choice`, `jev.score`) accepts an optional `provider`; omitting it uses the default provider, and an unlisted name is rejected before any request with a message naming the available providers,
+- `model` defaults to `JEV_MODEL` for the default provider and to `jev-latest` for TypeSafe or a local server when another provider is selected; for OpenRouter a `model` is required, because no default model can be assumed,
+- results name the provider that answered, and `jev.models` lists the models of every configured provider, each tagged with its provider, reporting a provider that cannot be reached instead of hiding it or failing the whole list,
+- JEV Core keeps depending only on the provider interface; providers, retries and pre-send checks are unchanged, and each provider keeps its own retry wrapper,
+- the routing is verified against at least two live providers in one server process,
 - `main` passes CI.
 
 ---

@@ -33,7 +33,10 @@ export type ProviderConfig =
   | { name: "local"; apiKey: string | undefined; baseUrl: string };
 
 export interface JevConfig {
+  /** The default provider, used when a request names none. */
   provider: ProviderConfig;
+  /** Other providers clients may select by name (`JEV_PROVIDERS`); empty by default. */
+  additionalProviders: ProviderConfig[];
   /** Model used when an evaluate input names none; the format depends on the provider. */
   jevModel: string;
   /** Retries after the first attempt for transient failures; 0 disables retries. */
@@ -69,7 +72,22 @@ const timeoutMessage = `JEV_TIMEOUT_MS must be a whole number of milliseconds fr
 const maxConcurrencyMessage =`JEV_MAX_CONCURRENCY must be a whole number from 1 to ${MAX_JEV_MAX_CONCURRENCY}`;
 const maxRetriesMessage =`JEV_MAX_RETRIES must be a whole number from 0 to ${MAX_JEV_MAX_RETRIES}`;
 
+const providersMessage = `JEV_PROVIDERS entries must be one of: ${PROVIDER_NAMES.join(", ")}, separated by commas`;
+
 const envSchema = z.object({
+  JEV_PROVIDERS: optionalString.pipe(
+    z
+      .string()
+      .transform((value) =>
+        value
+          .split(",")
+          .map((entry) => entry.trim())
+          .filter((entry) => entry !== ""),
+      )
+      .pipe(z.array(z.enum(PROVIDER_NAMES, { error: providersMessage })))
+      .optional()
+      .transform((value) => value ?? []),
+  ),
   JEV_PROVIDER: optionalString.pipe(
     z
       .enum(PROVIDER_NAMES, { error: `JEV_PROVIDER must be one of: ${PROVIDER_NAMES.join(", ")}` })
@@ -151,6 +169,25 @@ function invalid(problems: string): never {
   throw new JevError("configuration", `Invalid configuration: ${problems}`);
 }
 
+type ParsedEnv = z.infer<typeof envSchema>;
+
+/** Builds one provider's settings; `context` explains in errors why it is needed. */
+function providerConfig(name: ProviderName, data: ParsedEnv, context: string): ProviderConfig {
+  switch (name) {
+    case "typesafe":
+      if (data.TYPESAFE_API_KEY === undefined) {
+        // Kept short for the default case, which has always read this way.
+        invalid(context === "when JEV_PROVIDER=typesafe" ? "TYPESAFE_API_KEY is required" : `TYPESAFE_API_KEY is required ${context}`);
+      }
+      return { name, apiKey: data.TYPESAFE_API_KEY, baseUrl: data.TYPESAFE_BASE_URL };
+    case "openrouter":
+      if (data.OPENROUTER_API_KEY === undefined) invalid(`OPENROUTER_API_KEY is required ${context}`);
+      return { name, apiKey: data.OPENROUTER_API_KEY, baseUrl: data.OPENROUTER_BASE_URL };
+    case "local":
+      return { name, apiKey: data.JEV_LOCAL_API_KEY, baseUrl: data.JEV_LOCAL_BASE_URL };
+  }
+}
+
 /** Single place where environment variables are read and validated. */
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): JevConfig {
   const parsed = envSchema.safeParse(env);
@@ -160,27 +197,16 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): JevConfig {
   }
   const data = parsed.data;
 
-  // The selected provider's key is required; another provider's key is never used
-  // as a fallback.
-  let provider: ProviderConfig;
-  switch (data.JEV_PROVIDER) {
-    case "typesafe":
-      if (data.TYPESAFE_API_KEY === undefined) invalid("TYPESAFE_API_KEY is required");
-      provider = { name: "typesafe", apiKey: data.TYPESAFE_API_KEY, baseUrl: data.TYPESAFE_BASE_URL };
-      break;
-    case "openrouter":
-      if (data.OPENROUTER_API_KEY === undefined) {
-        invalid("OPENROUTER_API_KEY is required when JEV_PROVIDER=openrouter");
-      }
-      provider = { name: "openrouter", apiKey: data.OPENROUTER_API_KEY, baseUrl: data.OPENROUTER_BASE_URL };
-      break;
-    case "local":
-      provider = { name: "local", apiKey: data.JEV_LOCAL_API_KEY, baseUrl: data.JEV_LOCAL_BASE_URL };
-      break;
-  }
+  // Each provider's own key is required; another provider's key is never used as a
+  // fallback, and a key that is merely present never enables a provider.
+  const provider = providerConfig(data.JEV_PROVIDER, data, `when JEV_PROVIDER=${data.JEV_PROVIDER}`);
+  const additionalProviders = [...new Set(data.JEV_PROVIDERS)]
+    .filter((name) => name !== data.JEV_PROVIDER)
+    .map((name) => providerConfig(name, data, `when JEV_PROVIDERS includes ${name}`));
 
   return {
     provider,
+    additionalProviders,
     jevModel: data.JEV_MODEL,
     jevMaxRetries: data.JEV_MAX_RETRIES,
     imageDirectories: data.JEV_IMAGE_DIRS,

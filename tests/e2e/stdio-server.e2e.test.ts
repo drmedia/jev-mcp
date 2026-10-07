@@ -188,6 +188,36 @@ describe("stdio MCP server (e2e)", () => {
     },
   );
 
+  it.skipIf(!hasApiKey || !hasOpenRouterKey)(
+    "one server, two providers: the same question to TypeSafe Jev and OpenRouter Clef Flash",
+    async () => {
+      const mcp = await connect(serverEnv({ JEV_PROVIDERS: "typesafe,openrouter" }));
+      const question = {
+        state: "Help! My payouts have been failing for 3 days.",
+        instructions: "Does this message convey urgency?",
+      };
+
+      const jev = (await mcp.callTool({ name: "jev.noul", arguments: question })) as CallToolResult;
+      const clef = (await mcp.callTool({
+        name: "jev.noul",
+        arguments: { ...question, provider: "openrouter", model: "cloudflare/clef-flash" },
+      })) as CallToolResult;
+      const missingModel = (await mcp.callTool({
+        name: "jev.noul",
+        arguments: { ...question, provider: "openrouter" },
+      })) as CallToolResult;
+      const models = (await mcp.callTool({ name: "jev.models", arguments: {} })) as CallToolResult;
+
+      expect(jev.structuredContent).toMatchObject({ provider: "typesafe", answer: { type: "noul" } });
+      expect(clef.structuredContent).toMatchObject({ provider: "openrouter", model: "cloudflare/clef-flash" });
+      expect((clef.structuredContent as { usage: { costUsd?: number } }).usage.costUsd).toBeGreaterThan(0);
+      expect(missingModel.isError).toBe(true);
+      const listed = (models.structuredContent as { models: { name: string; provider: string }[] }).models;
+      expect(new Set(listed.map((model) => model.provider))).toEqual(new Set(["typesafe", "openrouter"]));
+      expect(listed).toContainEqual(expect.objectContaining({ name: "cloudflare/clef-flash", provider: "openrouter" }));
+    },
+  );
+
   it.skipIf(!hasOpenRouterKey)(
     "MCP client -> stdio -> jev.evaluate_batch with a per-item image -> OpenRouterProvider -> Clef Flash",
     async () => {

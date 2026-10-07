@@ -88,8 +88,8 @@ describe("MCP tools", () => {
     })) as CallToolResult;
 
     expect(result.isError).toBeFalsy();
-    expect(result.structuredContent).toEqual(evaluateResult);
-    expect(JSON.parse((result.content[0] as { text: string }).text)).toEqual(evaluateResult);
+    expect(result.structuredContent).toEqual({ ...evaluateResult, provider: "default" });
+    expect(JSON.parse((result.content[0] as { text: string }).text)).toEqual({ ...evaluateResult, provider: "default" });
     expect(provider.evaluateCalls[0]?.model).toBe("jev-latest");
   });
 
@@ -103,7 +103,7 @@ describe("MCP tools", () => {
     })) as CallToolResult;
 
     expect(result.isError).toBeFalsy();
-    expect(result.structuredContent).toEqual(withCost);
+    expect(result.structuredContent).toEqual({ ...withCost, provider: "default" });
   });
 
   it("jev.evaluate_batch returns per-item results through JevCore", async () => {
@@ -125,6 +125,7 @@ describe("MCP tools", () => {
 
     expect(result.isError).toBeFalsy();
     expect(result.structuredContent).toEqual({
+      provider: "default",
       results: [
         { index: 0, id: "first", status: "ok", ...evaluateResult },
         { index: 1, status: "error", error: { kind: "invalid_request", message: "rejected", status: 422 } },
@@ -277,7 +278,7 @@ describe("MCP tools", () => {
       const result = (await mcp.callTool({ name: c.tool, arguments: c.args })) as CallToolResult;
 
       expect(result.isError).toBeFalsy();
-      expect(result.structuredContent).toEqual({ model: "jev-1.13.0", answer: c.answer, usage });
+      expect(result.structuredContent).toEqual({ provider: "default", model: "jev-1.13.0", answer: c.answer, usage });
       expect(provider.evaluateCalls).toHaveLength(1);
       const request = provider.evaluateCalls[0]!;
       expect(request.state).toBe(state);
@@ -399,6 +400,8 @@ describe("MCP tools", () => {
     const result = (await mcp.callTool({ name: "jev.models", arguments: {} })) as CallToolResult;
 
     expect(result.isError).toBeFalsy();
-    expect(result.structuredContent).toEqual(models);
+    expect(result.structuredContent).toEqual({
+      models: [{ name: "jev-latest", description: "d", releaseDate: "2026-09-15", provider: "default" }],
+    });
   });
 });

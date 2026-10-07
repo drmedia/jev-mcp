@@ -78,7 +78,7 @@ describe("JevCore diagnostics", () => {
 
     expect(lines).toHaveLength(1);
     expect(lines[0]).toMatch(
-      /^\[jev-mcp\] debug: evaluate model=jev-latest questions=1 images=0 ok in \d+ ms \(answered by jev-1\.13\.0, tokens 120\/3, cost 0\.0001 USD\)\n$/,
+      /^\[jev-mcp\] debug: evaluate provider=default model=jev-latest questions=1 images=0 ok in \d+ ms \(answered by jev-1\.13\.0, tokens 120\/3, cost 0\.0001 USD\)\n$/,
     );
     expect(lines[0]).not.toContain("payouts");
     expect(lines[0]).not.toContain("urgency");

@@ -33,6 +33,7 @@ export const jevAnswerSchema = z.discriminatedUnion("type", [
 ]);
 
 const modelField = z.string().describe("The model that answered, usually a versioned ID");
+const providerField = z.string().describe("The provider that answered");
 
 const usageSchema = z.object({
   inputTokens: z.number().int(),
@@ -45,6 +46,7 @@ const usageSchema = z.object({
 });
 
 export const jevEvaluateResultSchema = z.object({
+  provider: providerField.optional(),
   model: modelField,
   answers: z.record(z.string(), jevAnswerSchema).describe("One answer per question ID"),
   usage: usageSchema,
@@ -56,6 +58,7 @@ const batchItemFields = {
 };
 
 export const jevEvaluateBatchResultSchema = z.object({
+  provider: providerField.describe("The provider every item was sent to"),
   results: z
     .array(
       z.discriminatedUnion("status", [
@@ -91,7 +94,7 @@ export const jevEvaluateBatchResultSchema = z.object({
 
 /** Result of a single-question convenience tool (jev.noul, jev.choice, jev.score). */
 function singleAnswerResultSchema<T extends z.ZodType>(answer: T) {
-  return z.object({ model: modelField, answer, usage: usageSchema });
+  return z.object({ provider: providerField.optional(), model: modelField, answer, usage: usageSchema });
 }
 
 export const jevNoulResultSchema = singleAnswerResultSchema(jevNoulAnswerSchema);
@@ -102,8 +105,13 @@ export const jevModelListSchema = z.object({
   models: z.array(
     z.object({
       name: z.string(),
+      provider: z.string().optional().describe("Pass this as `provider` to use the model"),
       description: z.string().optional(),
       releaseDate: z.string().optional(),
     }),
   ),
+  errors: z
+    .array(z.object({ provider: z.string(), kind: z.string(), message: z.string() }))
+    .optional()
+    .describe("Providers whose model list could not be read"),
 });
