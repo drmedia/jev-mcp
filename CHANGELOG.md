@@ -7,6 +7,27 @@ include breaking changes.
 
 ## [Unreleased]
 
+Phase 12 defined in AGENTS.md.
+
+### Added
+
+- `JEV_PROVIDERS`: one server can offer several providers (for example
+  `typesafe,openrouter,local`). Every question tool takes an optional `provider`;
+  omitting it uses `JEV_PROVIDER`. Each listed provider needs its own key, keys are
+  never shared between providers, and without `JEV_PROVIDERS` nothing changes.
+- Results report the `provider` that answered (`jev.evaluate_batch` once for the
+  batch). `jev.models` lists the models of every provider tagged with `provider`,
+  takes an optional `provider`, and reports an unreachable provider under `errors`
+  instead of failing.
+- A request that selects a non-default provider without a `model` uses `jev-latest`
+  for TypeSafe and local servers; OpenRouter requires an explicit `model`.
+
+### Changed
+
+- Debug log lines and retry warnings name the provider.
+- `JevCore` takes optional `providerName` and `additionalProviders`; each provider
+  keeps its own retry wrapper.
+
 ## [0.5.0] - 2026-10-07
 
 Completes Phases 10 and 11 defined in [AGENTS.md](AGENTS.md): a local Streamable HTTP

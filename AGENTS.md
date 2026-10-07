@@ -123,6 +123,7 @@ Later phases may include:
 - concurrency control (implemented for batches: Phase 9, `JEV_MAX_CONCURRENCY`)
 - telemetry
 - usage and cost metadata (implemented: token usage, and cost when the provider reports it)
+- provider selection per request (implemented: Phase 12, `JEV_PROVIDERS` and `provider`)
 - authentication (implemented for local HTTP: Phase 10, bearer token; OAuth is future)
 - Streamable HTTP transport (implemented locally: Phase 10, `src/transport/http.ts`; remote deployment is future)
 - Docker deployment (implemented locally: Phase 11, `Dockerfile` and `compose.yaml`; registry publishing and cloud deployment are future)
@@ -496,6 +497,7 @@ Implemented environment variables (defaults and ranges are in `README.md` and `.
 
 ```text
 JEV_PROVIDER
+JEV_PROVIDERS
 TYPESAFE_API_KEY
 TYPESAFE_BASE_URL
 OPENROUTER_API_KEY

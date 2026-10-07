@@ -30,6 +30,7 @@ npm run build
 | Variable | Required | Default |
 | --- | --- | --- |
 | `JEV_PROVIDER` | no | `typesafe` (or `openrouter`, `local`) |
+| `JEV_PROVIDERS` | no | unset: only `JEV_PROVIDER`. Comma-separated providers clients may select per request (see [Several providers](#several-providers-in-one-server)) |
 | `TYPESAFE_API_KEY` | when `JEV_PROVIDER=typesafe` | — |
 | `TYPESAFE_BASE_URL` | no | `https://api.typesafe.ai` |
 | `OPENROUTER_API_KEY` | when `JEV_PROVIDER=openrouter` | — |
@@ -76,6 +77,29 @@ own, and a missing key for the selected provider is a configuration error.
 | `typesafe` (default) | `jev-latest`, `jev-preview`, `jev-1.13.0` | not reported |
 | `openrouter` | `cloudflare/clef`, `cloudflare/clef-flash`, `typesafe/jev-1.13`, `jev-latest`, `openai/gpt-6-luna-decisions` (public beta) | `usage.costUsd` |
 | `local` | Whatever your local System One server serves, for example `clef-flash` with llama.cpp | not reported (no per-request cost) |
+
+### Several providers in one server
+
+`JEV_PROVIDERS` lets clients choose the provider per request, for example to ask Jev
+and Clef the same question:
+
+```bash
+JEV_PROVIDER=typesafe                  # default when a request names none
+JEV_PROVIDERS=typesafe,openrouter,local
+```
+
+Every question tool then takes an optional `provider`, and results report which
+provider answered. `jev.models` lists the models of every provider, each tagged with
+its `provider`; a provider that cannot be reached (such as a stopped local server)
+appears under `errors` instead of failing the list.
+
+- Each listed provider needs its own key; one provider's key is never used for
+  another, and a missing key is a configuration error.
+- Without `JEV_PROVIDERS`, only `JEV_PROVIDER` is used, even if other keys are set.
+- `JEV_MODEL` applies to the default provider. A request that selects TypeSafe or a
+  local server without a `model` uses `jev-latest`; OpenRouter needs an explicit
+  `model`, such as `cloudflare/clef-flash` or `typesafe/jev-1.13`.
+- An unknown `provider` is rejected before anything is sent.
 
 `JEV_PROVIDER=local` uses a server on your own machine or network: no data leaves it.
 Setup with llama.cpp and Clef Flash, and measured results:

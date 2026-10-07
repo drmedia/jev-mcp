@@ -5,6 +5,7 @@ import {
   imagesSchema,
   modelSchema,
   noulCriteriaSchema,
+  providerNameSchema,
   scoreCriteriaSchema,
 } from "./evaluate.js";
 
@@ -13,6 +14,7 @@ import {
 
 const common = {
   state: descriptionSchema,
+  provider: providerNameSchema.optional(),
   model: modelSchema.optional(),
   instructions: descriptionSchema,
   images: imagesSchema.optional(),

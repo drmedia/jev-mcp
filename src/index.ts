@@ -7,7 +7,7 @@ export {
   type ProviderName,
 } from "./config/config.js";
 export { JevError, type JevErrorKind } from "./core/errors.js";
-export { JevCore, type JevCoreOptions } from "./core/jev-core.js";
+export { JevCore, type JevCoreOptions, type JevProviderEntry } from "./core/jev-core.js";
 export type {
   JevBatchItemFailure,
   JevBatchItemResult,
@@ -38,6 +38,7 @@ export type {
 } from "./core/provider.js";
 export {
   jevEvaluateInputSchema,
+  jevModelsInputSchema,
   jevQuestionSchema,
   type JevChoiceQuestion,
   type JevDescription,

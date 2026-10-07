@@ -34,6 +34,9 @@ export const scoreCriteriaSchema = z
 
 export const modelSchema = z.string().trim().min(1, "must not be empty");
 
+/** A provider name; JEV Core checks it against the providers the server offers. */
+export const providerNameSchema = z.string().trim().min(1, "must not be empty");
+
 const noulQuestionSchema = z.strictObject({
   type: z.literal("noul"),
   instructions: descriptionSchema,
@@ -85,9 +88,15 @@ export const questionsSchema = z
 
 export const jevEvaluateInputSchema = z.strictObject({
   state: descriptionSchema,
+  provider: providerNameSchema.optional(),
   model: modelSchema.optional(),
   questions: questionsSchema,
   images: imagesSchema.optional(),
+});
+
+/** jev.models input: optionally one provider. */
+export const jevModelsInputSchema = z.strictObject({
+  provider: providerNameSchema.optional(),
 });
 
 export type JevDescription = z.infer<typeof descriptionSchema>;

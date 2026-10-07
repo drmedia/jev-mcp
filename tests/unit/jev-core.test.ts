@@ -62,7 +62,7 @@ describe("JevCore.evaluate", () => {
   it("sends all questions in one provider request and returns the answers", async () => {
     const { provider, core } = coreReturning(validResult);
 
-    await expect(core.evaluate(input)).resolves.toEqual(validResult);
+    await expect(core.evaluate(input)).resolves.toEqual({ ...validResult, provider: "default" });
 
     expect(provider.evaluateCalls).toHaveLength(1);
     expect(Object.keys(provider.evaluateCalls[0]!.questions)).toEqual([
@@ -151,7 +151,9 @@ describe("JevCore.models", () => {
       defaultModel: "jev-latest",
     });
 
-    await expect(core.models()).resolves.toEqual(models);
+    await expect(core.models()).resolves.toEqual({
+      models: models.models.map((model) => ({ ...model, provider: "default" })),
+    });
   });
 });
 
@@ -254,7 +256,7 @@ describe("JevCore.evaluate input size limit", () => {
     const state = "x".repeat(1000);
     const core = new JevCore({ provider, defaultModel: "m", maxInputChars: sizeOf(state) });
 
-    await expect(core.evaluate({ state, questions })).resolves.toEqual(result);
+    await expect(core.evaluate({ state, questions })).resolves.toEqual({ ...result, provider: "default" });
   });
 
   it("does not limit input when maxInputChars is 0 or omitted", async () => {
