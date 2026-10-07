@@ -722,7 +722,7 @@ Phase 6 (OpenRouter provider, `v0.2.0`) is complete when:
 - JEV Core logic and the MCP tool definitions are unchanged apart from the optional cost field and a `payment_required` error kind for HTTP 402,
 - `main` passes CI, and the `v0.2.0` tag and GitHub release exist.
 
-Phase 7 (general-purpose image input, `v0.3.0`) is complete when:
+Phase 7 (general-purpose image input) is complete when:
 
 - every question tool accepts an optional `images` list with the same format; images are not tied to any domain or use case,
 - images come from base64 data URLs (`data`) or local files (`path`); `path` reads only files inside the directories listed in `JEV_IMAGE_DIRS` and is disabled when it is unset,
@@ -730,7 +730,9 @@ Phase 7 (general-purpose image input, `v0.3.0`) is complete when:
 - a request with images is rejected before it is sent when the model is not known to accept images; a text-only model must never receive an image,
 - image parts placed inside `state` are rejected so images only travel through `images`,
 - image support is verified against the live API with an image-capable model (`cloudflare/clef` or `cloudflare/clef-flash` on OpenRouter),
-- `main` passes CI, and the `v0.3.0` tag and GitHub release exist.
+- `main` passes CI.
+
+Version bumps, tags and releases happen only when the project owner explicitly asks for them. Record unreleased changes under `## [Unreleased]` in `CHANGELOG.md` until then.
 
 ---
 

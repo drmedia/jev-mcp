@@ -5,9 +5,9 @@ All notable changes to this project are documented here. The format follows
 [Semantic Versioning](https://semver.org/). Before 1.0.0, minor versions may
 include breaking changes.
 
-## [0.3.0] - 2026-10-07
+## [Unreleased]
 
-Completes Phase 7 defined in [AGENTS.md](AGENTS.md).
+Phase 7 defined in [AGENTS.md](AGENTS.md).
 
 ### Added
 
@@ -86,6 +86,6 @@ First release. Completes MVP phases 1-5 defined in [AGENTS.md](AGENTS.md).
   [docs/typesafe-api-notes.md](docs/typesafe-api-notes.md).
 - GitHub Actions CI: typecheck, unit tests and build on Node 20 and 22.
 
-[0.3.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.3.0
+[Unreleased]: https://github.com/drmedia/jev-mcp/compare/v0.2.0...HEAD
 [0.2.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.2.0
 [0.1.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.1.0
