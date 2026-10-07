@@ -24,7 +24,7 @@ Paths below use `/absolute/path/to/jev-mcp`; on Windows use a path such as
 | Claude Code | stdio | Verified end to end (2026-10-07, Claude Code 2.1.289) |
 | Codex CLI | stdio | Verified end to end (2026-10-07, codex-cli 0.160.0) |
 | VS Code (agent mode) | stdio | Workspace config provided, not yet verified |
-| Claude Desktop | stdio | Config documented, not yet verified |
+| Claude Desktop | stdio | Verified end to end (2026-10-07, Windows) |
 | ChatGPT | stdio via Secure MCP Tunnel | Verified end to end (2026-10-07, tunnel-client 0.0.16) |
 
 Both verified clients rewrite the tool names: `jev.evaluate` appears as
@@ -77,7 +77,8 @@ an absolute path in `args`.
 ## Claude Desktop
 
 Add to `claude_desktop_config.json` (Windows: `%APPDATA%\Claude\`, macOS:
-`~/Library/Application Support/Claude/`), then restart Claude Desktop:
+`~/Library/Application Support/Claude/`), then fully quit Claude Desktop (from the
+tray or menu bar, not just the window) and start it again:
 
 ```json
 {
