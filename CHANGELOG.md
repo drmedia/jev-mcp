@@ -7,25 +7,10 @@ include breaking changes.
 
 ## [Unreleased]
 
-Phases 7 and 8 defined in [AGENTS.md](AGENTS.md).
+## [0.3.0] - 2026-10-07
 
-### Added (Phase 8)
-
-- `JEV_PROVIDER=local` with `LocalProvider`: a System One-compatible server on your
-  own machine or network (`JEV_LOCAL_BASE_URL`, default `http://127.0.0.1:8097`;
-  optional `JEV_LOCAL_API_KEY`). Verified with llama.cpp `llama-server` serving Clef
-  Flash (Q4_K_M) on an RTX 4070 Ti, text and images.
-- Images go to local models the server lists with an `image` input, in the server's
-  `images` field; WebP is rejected before sending for llama-server, which cannot load it.
-- docs/local-provider.md: llama.cpp and Clef Flash setup with SHA-256 checksums, the
-  required `--ubatch-size`, and measured local vs cloud results.
-- Local contract and e2e tests run only when a local server is reachable.
-
-### Changed (Phase 8)
-
-- `jev.models` entries have optional `description` and `releaseDate`, omitted when
-  a provider does not report them instead of being invented.
-- The HTTP client sends no Authorization header when no key is configured.
+Completes Phases 7 and 8 defined in [AGENTS.md](AGENTS.md): general-purpose image
+input, checks before sending, GPT-6 Luna Decisions, and a local provider.
 
 ### Added
 
@@ -37,28 +22,35 @@ Phases 7 and 8 defined in [AGENTS.md](AGENTS.md).
 - Validation before any provider call: at most 4 images, PNG/JPEG/WebP detected from
   the bytes, 4 MiB each and 8 MiB in total.
 - OpenRouter sends images to image-capable models (`cloudflare/clef`,
-  `cloudflare/clef-flash`) as image parts in `state`, verified against the live API.
-- Clef image requests above 384,000 bytes of images in total are rejected before
-  sending: OpenRouter returns 413 above about that size for Clef (measured), far below
-  Clef's documented 4 MiB per image. Other models are not held to this limit.
+  `cloudflare/clef-flash`, `openai/gpt-6-luna-decisions`) as image parts in `state`,
+  verified against the live API.
 - `openai/gpt-6-luna-decisions` (OpenAI's Decisions API, public beta) is supported
   through OpenRouter and verified live for text, images and refusals.
-- `refused` error kind: a model refusal (OpenRouter HTTP 502 "refused to answer
-  question") is reported with the question and not retried.
-- docs/openrouter-notes.md records the measured image limit, a small real-photo
-  check, request-level differences between Jev and Clef, and that rejected requests
-  were not billed.
+- `JEV_PROVIDER=local` with `LocalProvider`: a System One-compatible server on your
+  own machine or network (`JEV_LOCAL_BASE_URL`, default `http://127.0.0.1:8097`;
+  optional `JEV_LOCAL_API_KEY`). Verified with llama.cpp `llama-server` serving Clef
+  Flash (Q4_K_M) on an RTX 4070 Ti, for text and images. Images go in the server's
+  `images` field; WebP is rejected before sending for llama-server, which cannot load it.
 - `JEV_MAX_INPUT_CHARS` (default 256,000): text input above the limit is rejected
   before sending, because Clef accepted and billed inputs far beyond its documented
   context.
-- Clef's request rules (question IDs of letters, digits, `_`, `.`, `-`; 2 to 255
-  choice options; at most 64 questions) are checked before sending, with a message
-  naming the questions, instead of OpenRouter's nested 422.
+- Clef's request rules are checked before sending, with a message naming the
+  problem: question IDs of letters, digits, `_`, `.`, `-`; 2 to 255 choice options;
+  at most 64 questions; and at most 384,000 bytes of images per request, the limit
+  measured through OpenRouter (far below Clef's documented 4 MiB per image).
+- `refused` error kind: a model refusal (OpenRouter HTTP 502 "refused to answer
+  question") is reported with the question and not retried.
+- docs/openrouter-notes.md records the measured image limit, a small real-photo
+  check, request-level differences between Jev, Clef and GPT-6 Luna, and that
+  rejected requests were not billed.
+- docs/local-provider.md: llama.cpp and Clef Flash setup with SHA-256 checksums, the
+  required `--ubatch-size`, and measured local vs cloud results.
+- Local contract and e2e tests run only when a local server is reachable.
 
 ### Security
 
-- Requests with images are rejected before sending unless OpenRouter lists the model
-  with an `image` input modality. Jev answers images with HTTP 200 and meaningless
+- Requests with images are rejected before sending unless the provider lists the
+  model with an `image` input. Jev answers images with HTTP 200 and confident wrong
   probabilities, so it must never receive one. The TypeSafe provider rejects images.
 - Image parts placed inside `state` are rejected, so images cannot bypass validation
   and the model capability check.
@@ -69,7 +61,10 @@ Phases 7 and 8 defined in [AGENTS.md](AGENTS.md).
 - Error messages show the reason when the provider sends only an error type (TypeSafe
   `max_tokens_exceeded`) or relays an upstream error inside OpenRouter's message.
 - OpenRouter model discovery follows the documented `Model` schema: `description` is
-  optional (the model name is used instead) and `input_modalities` is required.
+  optional and `input_modalities` is required.
+- `jev.models` entries have optional `description` and `releaseDate`, omitted when a
+  provider does not report them instead of being invented.
+- The HTTP client sends no Authorization header when no key is configured.
 
 ## [0.2.0] - 2026-10-07
 
@@ -123,6 +118,7 @@ First release. Completes MVP phases 1-5 defined in [AGENTS.md](AGENTS.md).
   [docs/typesafe-api-notes.md](docs/typesafe-api-notes.md).
 - GitHub Actions CI: typecheck, unit tests and build on Node 20 and 22.
 
-[Unreleased]: https://github.com/drmedia/jev-mcp/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/drmedia/jev-mcp/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.3.0
 [0.2.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.2.0
 [0.1.0]: https://github.com/drmedia/jev-mcp/releases/tag/v0.1.0
