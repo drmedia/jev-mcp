@@ -1,39 +1,62 @@
 # jev-mcp
 
-A general-purpose MCP server for [TypeSafe Jev](https://docs.typesafe.ai). It lets MCP
-clients ask typed questions (yes/no, choice, score) about structured state and
-get back calibrated probabilities.
+A general-purpose MCP server for System One decision models such as
+[TypeSafe Jev](https://docs.typesafe.ai) and Cloudflare Clef. It lets MCP clients ask
+typed questions (yes/no, choice, score) about structured state and get back
+calibrated probabilities.
 
 ```text
-MCP client → stdio → MCP tools → JEV Core → JevProvider → TypeSafeProvider → TypeSafe Jev API
+MCP client → stdio → MCP tools → JEV Core → JevProvider → TypeSafe API or OpenRouter
 ```
 
 See [AGENTS.md](AGENTS.md) for architecture and development rules,
-[docs/typesafe-api-notes.md](docs/typesafe-api-notes.md) for the verified API contract,
+[docs/typesafe-api-notes.md](docs/typesafe-api-notes.md) and
+[docs/openrouter-notes.md](docs/openrouter-notes.md) for the verified API contracts,
 and [CHANGELOG.md](CHANGELOG.md) for release history.
 
 ## Requirements
 
 - Node.js 20.12 or later
-- A TypeSafe API key
+- A TypeSafe API key, or an OpenRouter API key
 
 ## Setup
 
 ```bash
 npm install
-cp .env.example .env   # then set TYPESAFE_API_KEY in .env
+cp .env.example .env   # then set the key for your provider in .env
 npm run build
 ```
 
 | Variable | Required | Default |
 | --- | --- | --- |
-| `TYPESAFE_API_KEY` | yes | — |
+| `JEV_PROVIDER` | no | `typesafe` (or `openrouter`) |
+| `TYPESAFE_API_KEY` | when `JEV_PROVIDER=typesafe` | — |
 | `TYPESAFE_BASE_URL` | no | `https://api.typesafe.ai` |
+| `OPENROUTER_API_KEY` | when `JEV_PROVIDER=openrouter` | — |
+| `OPENROUTER_BASE_URL` | no | `https://openrouter.ai/api` (API root, without `/v1`) |
 | `JEV_MODEL` | no | `jev-latest` |
 | `JEV_MAX_RETRIES` | no | `2` (0 to 10; 0 disables retries) |
 
 The stdio server loads `.env` from the package root when present. Variables already
 set by the MCP client or shell take precedence.
+
+## Providers
+
+`JEV_PROVIDER` selects one provider. It never switches to another provider on its
+own, and a missing key for the selected provider is a configuration error.
+
+| `JEV_PROVIDER` | Models (`JEV_MODEL`) | Cost in results |
+| --- | --- | --- |
+| `typesafe` (default) | `jev-latest`, `jev-preview`, `jev-1.13.0` | not reported |
+| `openrouter` | `cloudflare/clef`, `cloudflare/clef-flash`, `typesafe/jev-1.13`, `jev-latest` | `usage.costUsd` |
+
+On OpenRouter, Clef needs its full ID (`cloudflare/clef-flash`, not `clef-flash`),
+accepts at most 64 questions per request, and Jev's context is 32k tokens instead of
+64k. `jev.models` lists the decision models OpenRouter exposes. Details:
+[docs/openrouter-notes.md](docs/openrouter-notes.md).
+
+Models differ in how confident they are. Clef reported lower `confidence` than Jev
+for the same questions in testing, so set thresholds per model.
 
 ## Clients
 
@@ -44,9 +67,10 @@ Tunnel). Setup for each client, plus VS Code and Claude Desktop:
 ## Retries
 
 The stdio server wraps the provider in `RetryingJevProvider`, which retries
-transient failures: rate limiting (429), overload (529), timeouts (including 408),
-HTTP 500/502/503/504 and network errors such as DNS failures. Authentication,
-authorization, invalid requests and invalid responses are never retried.
+transient failures: rate limiting (429), overload (529), timeouts (including 408 and
+OpenRouter's 524), HTTP 500/502/503/504 and network errors such as DNS failures.
+Authentication, authorization, insufficient credits (402), invalid requests and
+invalid responses are never retried.
 
 Waits use exponential backoff with jitter (up to 0.5 s, then 1 s, 2 s, ..., capped
 at 8 s). A `retry-after` header is honored when it is 8 s or less; a longer

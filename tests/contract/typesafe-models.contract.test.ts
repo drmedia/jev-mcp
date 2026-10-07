@@ -1,18 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_TYPESAFE_BASE_URL, loadConfig } from "../../src/config/config.js";
+import { DEFAULT_TYPESAFE_BASE_URL } from "../../src/config/config.js";
 import { JevError } from "../../src/core/errors.js";
 import { TypeSafeProvider } from "../../src/providers/typesafe/typesafe-provider.js";
-
-const hasApiKey = Boolean(process.env.TYPESAFE_API_KEY?.trim());
+import { hasTypeSafeKey as hasApiKey, typesafeProviderFromEnv } from "../support/providers-from-env.js";
 const baseUrl = process.env.TYPESAFE_BASE_URL?.trim() || DEFAULT_TYPESAFE_BASE_URL;
 
 describe("TypeSafe /v1/models contract", () => {
   it.skipIf(!hasApiKey)("lists models with the documented shape", async () => {
-    const config = loadConfig();
-    const provider = new TypeSafeProvider({
-      apiKey: config.typesafeApiKey,
-      baseUrl: config.typesafeBaseUrl,
-    });
+    const provider = typesafeProviderFromEnv();
 
     const result = await provider.models();
 
@@ -27,11 +22,7 @@ describe("TypeSafe /v1/models contract", () => {
   // OpenAPI documents release_date as YYYY-MM-DD; the live API returns ISO 8601
   // timestamps. This pins the observed format so a change on either side is noticed.
   it.skipIf(!hasApiKey)("returns release dates as ISO 8601 timestamps", async () => {
-    const config = loadConfig();
-    const provider = new TypeSafeProvider({
-      apiKey: config.typesafeApiKey,
-      baseUrl: config.typesafeBaseUrl,
-    });
+    const provider = typesafeProviderFromEnv();
 
     const result = await provider.models();
 

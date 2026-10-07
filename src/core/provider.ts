@@ -50,6 +50,8 @@ export type JevAnswer = JevNoulAnswer | JevChoiceAnswer | JevScoreAnswer;
 export interface JevUsage {
   inputTokens: number;
   outputTokens: number;
+  /** Cost in USD as reported by the provider. Absent when the provider does not report it. */
+  costUsd?: number;
 }
 
 export interface JevEvaluateResult {

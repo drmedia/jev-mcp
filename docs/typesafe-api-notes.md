@@ -56,7 +56,7 @@ The docs also list `429 Too Many Requests` and `529 Overloaded` without a body s
 - **Missing API key returns 403, not 401.** The docs list `401` for a "missing or
   invalid API key". In practice, a request without an `Authorization` header gets `403`.
   An invalid key gets `401`. Both carry `error_type: "authentication_error"`.
-  `http-errors.ts` maps by `error_type` first, and
+  `src/providers/http/http-errors.ts` maps by `error_type` first, and
   `tests/contract/typesafe-models.contract.test.ts` pins the behavior.
 - **`release_date` is a timestamp, not a date.** OpenAPI describes `release_date`
   as `YYYY-MM-DD`, but the live API returns ISO 8601 timestamps such as

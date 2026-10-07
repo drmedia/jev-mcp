@@ -6,6 +6,7 @@ import { afterEach, describe, expect, it } from "vitest";
 
 const serverPath = fileURLToPath(new URL("../../dist/transport/stdio.js", import.meta.url));
 const hasApiKey = Boolean(process.env.TYPESAFE_API_KEY?.trim());
+const hasOpenRouterKey = Boolean(process.env.OPENROUTER_API_KEY?.trim());
 
 let client: Client | undefined;
 
@@ -14,13 +15,17 @@ afterEach(async () => {
   client = undefined;
 });
 
+/**
+ * Explicit variables win over the server's own .env loading, so each test pins
+ * JEV_PROVIDER and JEV_MODEL instead of inheriting whatever .env selects.
+ */
 function serverEnv(overrides: Record<string, string>): Record<string, string> {
   const env: Record<string, string> = { ...getDefaultEnvironment() };
-  for (const key of ["TYPESAFE_API_KEY", "TYPESAFE_BASE_URL", "JEV_MODEL"]) {
+  for (const key of ["TYPESAFE_API_KEY", "TYPESAFE_BASE_URL", "OPENROUTER_API_KEY"]) {
     const value = process.env[key];
     if (value !== undefined) env[key] = value;
   }
-  return { ...env, ...overrides };
+  return { JEV_PROVIDER: "typesafe", JEV_MODEL: "jev-latest", ...env, ...overrides };
 }
 
 async function connect(env: Record<string, string>): Promise<Client> {
@@ -83,6 +88,40 @@ describe("stdio MCP server (e2e)", () => {
         .answer;
       expect(answer.type).toBe("choice");
       expect(["billing", "technical", "sales"]).toContain(answer.choice);
+    },
+  );
+
+  it.skipIf(!hasOpenRouterKey)(
+    "MCP client -> stdio -> jev.noul -> JevCore -> OpenRouterProvider -> Clef",
+    async () => {
+      const mcp = await connect(
+        serverEnv({ JEV_PROVIDER: "openrouter", JEV_MODEL: "cloudflare/clef-flash" }),
+      );
+
+      const result = (await mcp.callTool({
+        name: "jev.noul",
+        arguments: {
+          state: "Help! My payouts have been failing for 3 days.",
+          instructions: "Does this convey urgency?",
+        },
+      })) as CallToolResult;
+
+      expect(result.isError).toBeFalsy();
+      const content = result.structuredContent as {
+        model: string;
+        answer: { type: string; noul: number };
+        usage: { costUsd?: number };
+      };
+      expect(content.model).toBe("cloudflare/clef-flash");
+      expect(content.answer.type).toBe("noul");
+      expect(content.usage.costUsd).toBeGreaterThan(0);
+
+      const models = (await mcp.callTool({ name: "jev.models", arguments: {} })) as CallToolResult;
+      expect(models.isError).toBeFalsy();
+      const names = (models.structuredContent as { models: { name: string }[] }).models.map(
+        (model) => model.name,
+      );
+      expect(names).toContain("cloudflare/clef-flash");
     },
   );
 

@@ -37,6 +37,11 @@ const modelField = z.string().describe("The model that answered, usually a versi
 const usageSchema = z.object({
   inputTokens: z.number().int(),
   outputTokens: z.number().int(),
+  costUsd: z
+    .number()
+    .nonnegative()
+    .optional()
+    .describe("Cost in USD as reported by the provider; absent when the provider does not report it"),
 });
 
 export const jevEvaluateResultSchema = z.object({

@@ -6,8 +6,8 @@ import { loadConfig } from "../config/config.js";
 import { JevCore } from "../core/jev-core.js";
 import { createJevMcpServer } from "../mcp/server.js";
 import { logError, logWarning } from "../observability/logger.js";
+import { createProvider } from "../providers/create-provider.js";
 import { RetryingJevProvider } from "../providers/retrying-provider.js";
-import { TypeSafeProvider } from "../providers/typesafe/typesafe-provider.js";
 
 // Optional local credentials next to package.json. Variables already set by the
 // MCP client or shell take precedence over values in the file.
@@ -17,10 +17,7 @@ if (existsSync(envFile)) process.loadEnvFile(envFile);
 async function main(): Promise<void> {
   const config = loadConfig();
   const provider = new RetryingJevProvider(
-    new TypeSafeProvider({
-      apiKey: config.typesafeApiKey,
-      baseUrl: config.typesafeBaseUrl,
-    }),
+    createProvider(config.provider),
     {
       policy: { maxRetries: config.jevMaxRetries },
       onRetry: ({ operation, retry, delayMs, error }) =>

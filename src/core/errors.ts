@@ -3,6 +3,8 @@ export type JevErrorKind =
   | "invalid_input"
   | "authentication"
   | "authorization"
+  /** The provider account cannot pay for the request (HTTP 402, e.g. no credits left). */
+  | "payment_required"
   | "invalid_request"
   | "rate_limited"
   | "overloaded"
