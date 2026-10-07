@@ -19,6 +19,7 @@ Phase 9 defined in AGENTS.md.
   successful item reported one.
 - `JEV_MAX_CONCURRENCY` (default 4, 1 to 16): provider requests a batch runs at the
   same time.
+- MIT license (`LICENSE`); `package.json` now declares `MIT` instead of the npm default `ISC`.
 
 ## [0.3.0] - 2026-10-07
 

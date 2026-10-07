@@ -276,3 +276,7 @@ GitHub Actions ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs
 `typecheck`, `test` and `build` on Node 20 and 22 for every push to `main` and every
 pull request. It needs no secrets. The contract and e2e suites call the real API and
 are run locally with a key.
+
+## License
+
+[MIT](LICENSE)
