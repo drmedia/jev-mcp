@@ -199,6 +199,9 @@ Evaluates `state` against a map of `questions` in one provider request.
 }
 ```
 
+`model` is optional and defaults to `JEV_MODEL`; surrounding whitespace is removed
+from it. No other input is changed.
+
 The result has `model`, `answers` (keyed by question ID) and `usage`. Failures come
 back as tool errors with a `kind` such as `invalid_input`, `authentication`,
 `rate_limited` or `invalid_response`. No answer is ever fabricated.
