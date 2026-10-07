@@ -23,8 +23,9 @@ Paths below use `/absolute/path/to/jev-mcp`; on Windows use a path such as
 | --- | --- | --- |
 | Claude Code | stdio | Verified end to end (2026-10-07, Claude Code 2.1.289) |
 | Codex CLI | stdio | Verified end to end (2026-10-07, codex-cli 0.160.0) |
-| VS Code (agent mode) | stdio | Workspace config provided, not yet verified |
-| Claude Desktop | stdio | Config documented, not yet verified |
+| Claude Code in VS Code (extension) | stdio | Verified end to end (2026-10-07); uses `.mcp.json` |
+| VS Code Copilot agent mode | stdio | Verified end to end (2026-10-07, VS Code 1.139); uses `.vscode/mcp.json` |
+| Claude Desktop | stdio | Verified end to end (2026-10-07, Windows) |
 | ChatGPT | stdio via Secure MCP Tunnel | Verified end to end (2026-10-07, tunnel-client 0.0.16) |
 
 Both verified clients rewrite the tool names: `jev.evaluate` appears as
@@ -65,7 +66,10 @@ codex exec \
   "Call the jev models tool"
 ```
 
-## VS Code (agent mode)
+## VS Code Copilot agent mode
+
+This section is for VS Code's built-in Copilot chat. The Claude Code extension for
+VS Code does not use it; it reads `.mcp.json` like the Claude Code CLI.
 
 The repository ships a workspace [.vscode/mcp.json](../.vscode/mcp.json). Open the
 repository folder, then start the `jev` server from the MCP view or the
@@ -74,10 +78,21 @@ repository folder, then start the `jev` server from the MCP view or the
 For other workspaces, add the same entry to that workspace's `.vscode/mcp.json` with
 an absolute path in `args`.
 
+VS Code may start the server as soon as the folder opens and keeps it running. After
+`npm run build`, run `MCP: List Servers`, select `jev`, then **Restart Server** so
+Copilot uses the new build.
+
+## After rebuilding
+
+Every client keeps its own server process. After `npm run build`, restart the server
+in each client you use: restart Claude Code or Claude Desktop, restart the server from
+`MCP: List Servers` in VS Code, and stop and start `tunnel-client run` for ChatGPT.
+
 ## Claude Desktop
 
 Add to `claude_desktop_config.json` (Windows: `%APPDATA%\Claude\`, macOS:
-`~/Library/Application Support/Claude/`), then restart Claude Desktop:
+`~/Library/Application Support/Claude/`), then fully quit Claude Desktop (from the
+tray or menu bar, not just the window) and start it again:
 
 ```json
 {
