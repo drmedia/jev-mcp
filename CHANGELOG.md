@@ -7,10 +7,19 @@ include breaking changes.
 
 ## [Unreleased]
 
-Phase 12 defined in AGENTS.md.
+Phases 12 and 13 defined in AGENTS.md.
 
 ### Added
 
+- MCP `instructions` (Phase 13): on connect, the server sends the calling AI a short
+  usage guide (about 1,000 characters): which tool fits which task, what to do for
+  each error kind, how to treat results near 0.5, and the providers this server
+  offers, built from the configuration. Question writing, result fields and image
+  rules stay in the tool descriptions, which clients load only when needed. Claude
+  Code keeps only the first 2048 characters of server instructions (measured).
+  Verified with Claude Code.
+- `docs/usage.md`: integration guide for developers covering connection options, tools,
+  results, decision thresholds, providers, images, errors and cost.
 - `JEV_PROVIDERS`: one server can offer several providers (for example
   `typesafe,openrouter,local`). Every question tool takes an optional `provider`;
   omitting it uses `JEV_PROVIDER`. Each listed provider needs its own key, keys are

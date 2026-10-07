@@ -827,6 +827,16 @@ Phase 12 (selectable providers) is complete when:
 - the routing is verified against at least two live providers in one server process,
 - `main` passes CI.
 
+Phase 13 (client guidance) is complete when:
+
+- the server sends MCP `instructions` in its initialize result, telling the calling AI which tool fits which task, how to write questions, how to read probabilities, how to choose a provider and model, and what to do for each error kind,
+- the instructions are general-purpose (no domain or business rules) and are built from the server's configuration, so they name only the providers this server offers and its default,
+- the instructions stay short enough for clients that add them to a system prompt, and never contain secrets, base URLs or local paths,
+- `docs/usage.md` is the integration guide for developers: connection options (stdio, Streamable HTTP, Docker, ChatGPT tunnel), tool inputs and results, provider selection, error kinds, cost and choosing decision thresholds,
+- at least one real MCP client is shown to receive the instructions,
+- whenever tools, providers or error kinds change later, the instructions and `docs/usage.md` are updated in the same change,
+- `main` passes CI.
+
 ---
 
 ## 26. Out of Scope for Initial MVP
