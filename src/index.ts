@@ -24,6 +24,7 @@ export {
   type JevQuestion,
   type JevScoreQuestion,
 } from "./schemas/evaluate.js";
+export { createJevMcpServer } from "./mcp/server.js";
 export {
   TypeSafeProvider,
   type TypeSafeProviderOptions,

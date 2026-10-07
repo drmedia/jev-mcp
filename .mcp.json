@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "jev": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["dist/transport/stdio.js"]
+    }
+  }
+}

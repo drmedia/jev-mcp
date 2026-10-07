@@ -57,6 +57,10 @@ The docs also list `429 Too Many Requests` and `529 Overloaded` without a body s
   An invalid key gets `401`. Both carry `error_type: "authentication_error"`.
   `http-errors.ts` maps by `error_type` first, and
   `tests/contract/typesafe-models.contract.test.ts` pins the behavior.
+- **`release_date` is a timestamp, not a date.** OpenAPI describes `release_date`
+  as `YYYY-MM-DD`, but the live API returns ISO 8601 timestamps such as
+  `2026-09-10T18:38:01.391457+00:00`. The value is passed through as a string
+  without format validation.
 - **Unknown model returns 400.** `POST /v1/systemone` with an unknown `model`
   returns `400` with the message `Unknown model: <name>`. The docs list no 400
   response. It maps to `invalid_request`.

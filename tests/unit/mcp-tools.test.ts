@@ -1,0 +1,159 @@
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { JevError } from "../../src/core/errors.js";
+import { JevCore } from "../../src/core/jev-core.js";
+import type { JevEvaluateResult } from "../../src/core/provider.js";
+import { createJevMcpServer } from "../../src/mcp/server.js";
+import { MockJevProvider } from "../support/mock-provider.js";
+
+const evaluateArgs = {
+  state: "Help! My payouts have been failing for 3 days.",
+  questions: {
+    is_urgent: { type: "noul", instructions: "Does this convey urgency?" },
+    department: {
+      type: "choice",
+      instructions: "Which team should handle this?",
+      criteria: { billing: null, technical: null },
+    },
+  },
+};
+
+const evaluateResult: JevEvaluateResult = {
+  model: "jev-1.13.0",
+  answers: {
+    is_urgent: { type: "noul", noul: 0.95 },
+    department: {
+      type: "choice",
+      choice: "billing",
+      confidence: 0.81,
+      probabilities: { billing: 0.88, technical: 0.12 },
+    },
+  },
+  usage: { inputTokens: 318, outputTokens: 34 },
+};
+
+let client: Client | undefined;
+
+afterEach(async () => {
+  await client?.close();
+  client = undefined;
+});
+
+async function connect(provider: MockJevProvider): Promise<Client> {
+  const server = createJevMcpServer(new JevCore({ provider, defaultModel: "jev-latest" }));
+  const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
+  await server.connect(serverTransport);
+  client = new Client({ name: "test-client", version: "0.0.0" });
+  await client.connect(clientTransport);
+  return client;
+}
+
+function errorBody(result: CallToolResult): { kind: string; message: string; status?: number } {
+  expect(result.isError).toBe(true);
+  const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+  return (JSON.parse(text) as { error: { kind: string; message: string; status?: number } }).error;
+}
+
+describe("MCP tools", () => {
+  it("lists jev.evaluate and jev.models with input and output schemas", async () => {
+    const mcp = await connect(new MockJevProvider());
+
+    const { tools } = await mcp.listTools();
+
+    expect(tools.map((tool) => tool.name).sort()).toEqual(["jev.evaluate", "jev.models"]);
+    const evaluate = tools.find((tool) => tool.name === "jev.evaluate")!;
+    expect(evaluate.inputSchema.required).toEqual(["state", "questions"]);
+    expect(evaluate.outputSchema?.properties).toHaveProperty("answers");
+    expect(evaluate.annotations).toMatchObject({ readOnlyHint: true });
+  });
+
+  it("jev.evaluate returns structured answers through JevCore", async () => {
+    const provider = new MockJevProvider({ evaluate: () => evaluateResult });
+    const mcp = await connect(provider);
+
+    const result = (await mcp.callTool({
+      name: "jev.evaluate",
+      arguments: evaluateArgs,
+    })) as CallToolResult;
+
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toEqual(evaluateResult);
+    expect(JSON.parse((result.content[0] as { text: string }).text)).toEqual(evaluateResult);
+    expect(provider.evaluateCalls[0]?.model).toBe("jev-latest");
+  });
+
+  it("jev.evaluate rejects malformed questions without calling the provider", async () => {
+    const provider = new MockJevProvider({ evaluate: () => evaluateResult });
+    const mcp = await connect(provider);
+
+    const result = (await mcp.callTool({
+      name: "jev.evaluate",
+      arguments: {
+        state: "x",
+        questions: { q: { type: "score", instructions: "x", criteria: ["one"] } },
+      },
+    })) as CallToolResult;
+
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result.content)).toContain("at least 2 levels");
+    expect(provider.evaluateCalls).toHaveLength(0);
+  });
+
+  it("jev.evaluate reports provider errors without inventing answers", async () => {
+    const mcp = await connect(
+      new MockJevProvider({
+        evaluate: () => {
+          throw new JevError("rate_limited", "TypeSafe API returned HTTP 429", {
+            status: 429,
+            retryAfterSeconds: 3,
+          });
+        },
+      }),
+    );
+
+    const result = (await mcp.callTool({
+      name: "jev.evaluate",
+      arguments: evaluateArgs,
+    })) as CallToolResult;
+
+    expect(result.structuredContent).toBeUndefined();
+    expect(errorBody(result)).toEqual({
+      kind: "rate_limited",
+      message: "TypeSafe API returned HTTP 429",
+      status: 429,
+      retryAfterSeconds: 3,
+    });
+  });
+
+  it("hides unexpected internal errors behind a generic message and logs to stderr", async () => {
+    const stderr = vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+    const mcp = await connect(
+      new MockJevProvider({
+        evaluate: () => {
+          throw new Error("secret internal detail");
+        },
+      }),
+    );
+
+    const result = (await mcp.callTool({
+      name: "jev.evaluate",
+      arguments: evaluateArgs,
+    })) as CallToolResult;
+
+    expect(errorBody(result)).toEqual({ kind: "internal", message: "Unexpected server error" });
+    expect(String(stderr.mock.calls[0]?.[0])).toContain("secret internal detail");
+    stderr.mockRestore();
+  });
+
+  it("jev.models returns the provider's models", async () => {
+    const models = { models: [{ name: "jev-latest", description: "d", releaseDate: "2026-09-15" }] };
+    const mcp = await connect(new MockJevProvider({ models: () => models }));
+
+    const result = (await mcp.callTool({ name: "jev.models", arguments: {} })) as CallToolResult;
+
+    expect(result.isError).toBeFalsy();
+    expect(result.structuredContent).toEqual(models);
+  });
+});

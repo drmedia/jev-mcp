@@ -4,7 +4,7 @@ import type { JevDescription, JevQuestion } from "../schemas/evaluate.js";
 export interface JevModel {
   name: string;
   description: string;
-  /** Release date as reported by the provider (TypeSafe documents YYYY-MM-DD). */
+  /** Release date as reported by the provider; format varies (see docs/typesafe-api-notes.md). */
   releaseDate: string;
 }
 
