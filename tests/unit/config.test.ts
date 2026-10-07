@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_JEV_MAX_RETRIES,
   DEFAULT_JEV_MODEL,
   DEFAULT_TYPESAFE_BASE_URL,
   loadConfig,
@@ -12,7 +13,26 @@ describe("loadConfig", () => {
       typesafeApiKey: "test-key",
       typesafeBaseUrl: DEFAULT_TYPESAFE_BASE_URL,
       jevModel: DEFAULT_JEV_MODEL,
+      jevMaxRetries: DEFAULT_JEV_MAX_RETRIES,
     });
+  });
+
+  it.each([
+    ["0", 0],
+    ["5", 5],
+    [" 3 ", 3],
+    ["10", 10],
+    ["", DEFAULT_JEV_MAX_RETRIES],
+  ])("parses JEV_MAX_RETRIES=%j as %i", (value, expected) => {
+    expect(loadConfig({ TYPESAFE_API_KEY: "k", JEV_MAX_RETRIES: value }).jevMaxRetries).toBe(
+      expected,
+    );
+  });
+
+  it.each(["-1", "11", "1.5", "two"])("rejects JEV_MAX_RETRIES=%j", (value) => {
+    expect(() => loadConfig({ TYPESAFE_API_KEY: "k", JEV_MAX_RETRIES: value })).toThrowError(
+      /JEV_MAX_RETRIES must be a whole number from 0 to 10/,
+    );
   });
 
   it("treats empty values as unset", () => {

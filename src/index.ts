@@ -26,6 +26,12 @@ export {
 } from "./schemas/evaluate.js";
 export { createJevMcpServer } from "./mcp/server.js";
 export {
+  DEFAULT_RETRY_POLICY,
+  RetryingJevProvider,
+  type RetryingJevProviderOptions,
+  type RetryPolicy,
+} from "./providers/retrying-provider.js";
+export {
   TypeSafeProvider,
   type TypeSafeProviderOptions,
 } from "./providers/typesafe/typesafe-provider.js";

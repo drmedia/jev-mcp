@@ -29,6 +29,7 @@ npm run build
 | `TYPESAFE_API_KEY` | yes | — |
 | `TYPESAFE_BASE_URL` | no | `https://api.typesafe.ai` |
 | `JEV_MODEL` | no | `jev-latest` |
+| `JEV_MAX_RETRIES` | no | `2` (0 to 10; 0 disables retries) |
 
 The stdio server loads `.env` from the package root when present. Variables already
 set by the MCP client or shell take precedence.
@@ -38,6 +39,21 @@ set by the MCP client or shell take precedence.
 Verified with Claude Code, Codex CLI and ChatGPT (through OpenAI's Secure MCP
 Tunnel). Setup for each client, plus VS Code and Claude Desktop:
 [docs/clients.md](docs/clients.md).
+
+## Retries
+
+The stdio server wraps the provider in `RetryingJevProvider`, which retries
+transient failures: rate limiting (429), overload (529), timeouts (including 408),
+HTTP 500/502/503/504 and network errors such as DNS failures. Authentication,
+authorization, invalid requests and invalid responses are never retried.
+
+Waits use exponential backoff with jitter (up to 0.5 s, then 1 s, 2 s, ..., capped
+at 8 s). A `retry-after` header is honored when it is 8 s or less; a longer
+requested wait ends retrying. Cancellation stops any pending wait. Each retry is
+logged to stderr. After the last attempt, the original error is returned unchanged.
+
+`POST /v1/systemone` is retried too. If a timed-out request was actually processed,
+the retry is billed again.
 
 ## Use with Claude Code
 
