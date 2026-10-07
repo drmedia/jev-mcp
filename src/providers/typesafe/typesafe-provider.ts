@@ -1,11 +1,13 @@
 import { JevError } from "../../core/errors.js";
 import type {
+  JevEvaluateRequest,
+  JevEvaluateResult,
   JevModelList,
   JevProvider,
   JevRequestOptions,
 } from "../../core/provider.js";
 import { errorFromResponse } from "./http-errors.js";
-import { modelMetadataListSchema } from "./schemas.js";
+import { modelMetadataListSchema, systemOneResponseSchema } from "./schemas.js";
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -31,7 +33,7 @@ export class TypeSafeProvider implements JevProvider {
   }
 
   async models(options: JevRequestOptions = {}): Promise<JevModelList> {
-    const body = await this.#getJson("/v1/models", options);
+    const body = await this.#requestJson("GET", "/v1/models", undefined, options);
     const parsed = modelMetadataListSchema.safeParse(body);
     if (!parsed.success) {
       throw new JevError("invalid_response", "TypeSafe /v1/models response failed validation", {
@@ -47,20 +49,56 @@ export class TypeSafeProvider implements JevProvider {
     };
   }
 
-  async #getJson(path: string, options: JevRequestOptions): Promise<unknown> {
+  async evaluate(
+    request: JevEvaluateRequest,
+    options: JevRequestOptions = {},
+  ): Promise<JevEvaluateResult> {
+    // The request shape already matches the TypeSafe wire format.
+    const payload = {
+      state: request.state,
+      model: request.model,
+      questions: request.questions,
+    };
+    const body = await this.#requestJson("POST", "/v1/systemone", payload, options);
+    const parsed = systemOneResponseSchema.safeParse(body);
+    if (!parsed.success) {
+      throw new JevError("invalid_response", "TypeSafe /v1/systemone response failed validation", {
+        details: { issues: parsed.error.issues, body },
+      });
+    }
+    return {
+      model: parsed.data.model,
+      answers: parsed.data.answers,
+      usage: {
+        inputTokens: parsed.data.usage.input_tokens,
+        outputTokens: parsed.data.usage.output_tokens,
+      },
+    };
+  }
+
+  async #requestJson(
+    method: "GET" | "POST",
+    path: string,
+    payload: unknown,
+    options: JevRequestOptions,
+  ): Promise<unknown> {
     const timeoutSignal = AbortSignal.timeout(this.#timeoutMs);
     const signal = options.signal
       ? AbortSignal.any([options.signal, timeoutSignal])
       : timeoutSignal;
 
+    const headers: Record<string, string> = {
+      Authorization: `Bearer ${this.#apiKey}`,
+      Accept: "application/json",
+    };
+    if (payload !== undefined) headers["Content-Type"] = "application/json";
+
     let response: Response;
     try {
       response = await this.#fetch(`${this.#baseUrl}${path}`, {
-        method: "GET",
-        headers: {
-          Authorization: `Bearer ${this.#apiKey}`,
-          Accept: "application/json",
-        },
+        method,
+        headers,
+        ...(payload !== undefined && { body: JSON.stringify(payload) }),
         signal,
       });
     } catch (error) {

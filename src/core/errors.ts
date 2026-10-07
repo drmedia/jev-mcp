@@ -1,5 +1,6 @@
 export type JevErrorKind =
   | "configuration"
+  | "invalid_input"
   | "authentication"
   | "authorization"
   | "invalid_request"

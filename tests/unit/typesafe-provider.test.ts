@@ -217,3 +217,116 @@ describe("TypeSafeProvider.models", () => {
     await expect(pending).rejects.not.toBeInstanceOf(JevError);
   });
 });
+
+describe("TypeSafeProvider.evaluate", () => {
+  const request = {
+    state: { ticket: "Help! My payouts have been failing for 3 days." },
+    model: "jev-latest",
+    questions: {
+      is_urgent: { type: "noul" as const, instructions: "Does this convey urgency?" },
+      frustration: {
+        type: "score" as const,
+        instructions: "How frustrated is the customer?",
+        criteria: ["Calm", "Frustrated", "Very angry"],
+      },
+    },
+  };
+
+  const wireResponse = {
+    model: "jev-1.13.0",
+    answers: {
+      is_urgent: { type: "noul", noul: 0.95 },
+      frustration: {
+        type: "score",
+        score: 1.05,
+        legend: { "0": "Calm", "1": "Frustrated", "2": "Very angry" },
+        probabilities: { "0": 0.0, "1": 0.95, "2": 0.05 },
+        confidence: 0.92,
+      },
+    },
+    usage: { input_tokens: 296, output_tokens: 20 },
+  };
+
+  it("POSTs the request as JSON to /v1/systemone", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(wireResponse));
+
+    await providerWith(fetchMock).evaluate(request);
+
+    const [url, init] = fetchMock.mock.calls[0]!;
+    expect(url).toBe("https://api.example.test/v1/systemone");
+    expect(init?.method).toBe("POST");
+    expect(init?.headers).toMatchObject({
+      Authorization: `Bearer ${API_KEY}`,
+      "Content-Type": "application/json",
+    });
+    expect(JSON.parse(init?.body as string)).toEqual(request);
+  });
+
+  it("maps the documented response, including usage", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(wireResponse));
+
+    const result = await providerWith(fetchMock).evaluate(request);
+
+    expect(result).toEqual({
+      model: "jev-1.13.0",
+      answers: wireResponse.answers,
+      usage: { inputTokens: 296, outputTokens: 20 },
+    });
+  });
+
+  it("maps a choice answer", async () => {
+    const answer = {
+      type: "choice",
+      choice: "billing",
+      probabilities: { billing: 0.88, technical: 0.12 },
+      confidence: 0.81,
+    };
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse({ ...wireResponse, answers: { department: answer } }));
+
+    const result = await providerWith(fetchMock).evaluate(request);
+
+    expect(result.answers).toEqual({ department: answer });
+  });
+
+  it.each([
+    ["missing usage", { model: "m", answers: wireResponse.answers }],
+    ["unknown answer type", { ...wireResponse, answers: { q: { type: "rank", rank: 1 } } }],
+    ["noul without a value", { ...wireResponse, answers: { q: { type: "noul" } } }],
+    [
+      "choice without confidence",
+      { ...wireResponse, answers: { q: { type: "choice", choice: "a", probabilities: {} } } },
+    ],
+    ["non-integer token counts", { ...wireResponse, usage: { input_tokens: 1.5, output_tokens: 0 } }],
+  ])("rejects a response with %s", async (_label, body) => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(jsonResponse(body));
+
+    const error = await captureError(providerWith(fetchMock).evaluate(request));
+
+    expect(error.kind).toBe("invalid_response");
+    expect(error.details).toMatchObject({ body });
+  });
+
+  it("maps a 422 validation error with field locations", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse(
+        {
+          detail: [
+            {
+              loc: ["body", "questions", "frustration", "score", "criteria"],
+              msg: "List should have at least 1 item after validation, not 0",
+              type: "too_short",
+            },
+          ],
+        },
+        { status: 422 },
+      ),
+    );
+
+    const error = await captureError(providerWith(fetchMock).evaluate(request));
+
+    expect(error.kind).toBe("invalid_request");
+    expect(error.message).toContain("body.questions.frustration.score.criteria");
+  });
+});
