@@ -45,8 +45,8 @@ This repository includes a project-scoped [.mcp.json](.mcp.json) that starts
 `dist/transport/stdio.js`. After `npm run build`, start Claude Code in the repository
 root and approve the `jev` server when prompted. Check it with `/mcp`.
 
-Claude Code exposes the tools as `mcp__jev__jev_evaluate` and `mcp__jev__jev_models`
-(dots in tool names become underscores).
+Claude Code exposes the tools with dots replaced by underscores, for example
+`mcp__jev__jev_evaluate` and `mcp__jev__jev_noul`.
 
 To use the server from another project, register it with an absolute path:
 
@@ -86,6 +86,25 @@ back as tool errors with a `kind` such as `invalid_input`, `authentication`,
 ### `jev.models`
 
 Lists the model names and aliases the provider accepts in `model`.
+
+### `jev.noul`, `jev.choice`, `jev.score`
+
+Convenience tools for a single question. Each takes `state`, `instructions`, an
+optional `model` and the question's `criteria` (optional for `jev.noul`), and
+returns `{ model, answer, usage }`. They wrap the input in a one-question
+`jev.evaluate` request and run it through the same JEV Core path, so validation,
+answer checks and errors are identical.
+
+```json
+{
+  "state": "Help! My payouts have been failing for 3 days.",
+  "instructions": "Which team should handle this?",
+  "criteria": { "billing": "Payments, refunds", "technical": "Bugs, outages" }
+}
+```
+
+Use `jev.evaluate` to ask several questions about the same state: it answers them
+in one request.
 
 ## Scripts
 
