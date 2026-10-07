@@ -6,6 +6,22 @@
 
 Follow it before making any change.
 
+Use English only for all repository content and development output, including:
+
+- source code
+- comments
+- documentation
+- tests
+- error messages
+- log messages
+- configuration comments
+- branch names
+- commit messages
+- pull request content
+- implementation reports
+
+Do not add Korean text to the repository unless explicitly required for localization or test data.
+
 For substantial changes:
 
 - inspect the current implementation first,
