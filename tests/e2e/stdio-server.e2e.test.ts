@@ -34,6 +34,53 @@ function serverEnv(overrides: Record<string, string>): Record<string, string> {
   return { JEV_PROVIDER: "typesafe", JEV_MODEL: "jev-latest", JEV_IMAGE_DIRS: "", ...env, ...overrides };
 }
 
+/** Three text items and one image item, asked the same choice question. */
+const batchWithImageArgs = {
+  items: [
+    { id: "payout", state: "My payout has failed three times this week and I need the money." },
+    { id: "crash", state: "The mobile app crashes every time I open the settings screen." },
+    { id: "thanks", state: "Just wanted to say the new dashboard looks great, thanks!" },
+    {
+      id: "photo",
+      state: "A customer attached a photo of the damaged part they received.",
+      images: [{ data: `data:image/png;base64,${solidPng([220, 20, 20]).toString("base64")}` }],
+    },
+  ],
+  questions: {
+    team: {
+      type: "choice",
+      instructions: "Which team should handle this customer message?",
+      criteria: {
+        billing: "Payments, payouts, refunds",
+        technical: "Bugs, crashes, outages",
+        returns: "Damaged or wrong items received",
+        none: "No action needed",
+      },
+    },
+    color: {
+      type: "choice",
+      instructions: "What is the dominant color of the attached image? Answer none when there is no image.",
+      criteria: { red: null, green: null, blue: null, none: null },
+    },
+  },
+};
+
+function expectBatchWithImageAnswers(result: CallToolResult): void {
+  expect(result.isError).toBeFalsy();
+  const content = result.structuredContent as {
+    results: { id: string; status: string; answers?: Record<string, { choice: string }> }[];
+    summary: { ok: number };
+  };
+  expect(content.summary.ok).toBe(4);
+  expect(content.results.map((item) => [item.id, item.answers?.team?.choice])).toEqual([
+    ["payout", "billing"],
+    ["crash", "technical"],
+    ["thanks", "none"],
+    ["photo", "returns"],
+  ]);
+  expect(content.results[3]!.answers?.color?.choice).toBe("red");
+}
+
 async function connect(env: Record<string, string>): Promise<Client> {
   client = new Client({ name: "e2e-client", version: "0.0.0" });
   await client.connect(
@@ -138,6 +185,25 @@ describe("stdio MCP server (e2e)", () => {
         ["thanks", "none"],
       ]);
       expect(content.usage.inputTokens).toBeGreaterThan(0);
+    },
+  );
+
+  it.skipIf(!hasOpenRouterKey)(
+    "MCP client -> stdio -> jev.evaluate_batch with a per-item image -> OpenRouterProvider -> Clef Flash",
+    async () => {
+      const mcp = await connect(
+        serverEnv({ JEV_PROVIDER: "openrouter", JEV_MODEL: "cloudflare/clef-flash", JEV_MAX_CONCURRENCY: "2" }),
+      );
+
+      const result = (await mcp.callTool({ name: "jev.evaluate_batch", arguments: batchWithImageArgs })) as CallToolResult;
+
+      expectBatchWithImageAnswers(result);
+      const content = result.structuredContent as {
+        results: { model: string; usage: { costUsd?: number } }[];
+        usage: { costUsd?: number };
+      };
+      expect(content.results.every((item) => item.model === "cloudflare/clef-flash")).toBe(true);
+      expect(content.usage.costUsd).toBeGreaterThan(0);
     },
   );
 
@@ -253,6 +319,18 @@ describe("stdio MCP server with a local provider (e2e)", () => {
       } finally {
         await rm(dir, { recursive: true, force: true });
       }
+    },
+  );
+
+  it.skipIf(!localUp)(
+    "MCP client -> stdio -> jev.evaluate_batch with a per-item image -> LocalProvider -> local Clef Flash",
+    async () => {
+      const mcp = await connect(serverEnv({ JEV_PROVIDER: "local", JEV_MODEL: "clef-flash", JEV_MAX_CONCURRENCY: "2" }));
+
+      const result = (await mcp.callTool({ name: "jev.evaluate_batch", arguments: batchWithImageArgs })) as CallToolResult;
+
+      expectBatchWithImageAnswers(result);
+      expect((result.structuredContent as { usage: object }).usage).not.toHaveProperty("costUsd");
     },
   );
 });
