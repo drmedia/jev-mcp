@@ -182,12 +182,16 @@ describe("TypeSafeProvider.models", () => {
     expect(JSON.stringify(error.details)).not.toContain(API_KEY);
   });
 
-  it("maps fetch failures to a network error", async () => {
-    const fetchMock = vi.fn<typeof fetch>().mockRejectedValue(new TypeError("fetch failed"));
+  it("maps fetch failures to a network error that names the underlying cause", async () => {
+    const reset = Object.assign(new Error("read ECONNRESET"), { code: "ECONNRESET" });
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(new TypeError("fetch failed", { cause: reset }));
 
     const error = await captureError(providerWith(fetchMock).models());
 
     expect(error.kind).toBe("network");
+    expect(error.message).toBe("Could not reach the TypeSafe API (ECONNRESET: read ECONNRESET)");
     expect(error.cause).toBeInstanceOf(TypeError);
   });
 

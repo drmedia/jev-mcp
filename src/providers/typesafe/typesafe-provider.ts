@@ -11,6 +11,19 @@ import { modelMetadataListSchema, systemOneResponseSchema } from "./schemas.js";
 
 export const DEFAULT_TIMEOUT_MS = 30_000;
 
+/**
+ * Node's fetch rejects with a generic "fetch failed" TypeError; the useful
+ * reason (e.g. ECONNRESET, ENOTFOUND, UND_ERR_CONNECT_TIMEOUT) is on `cause`.
+ */
+function describeFetchFailure(error: unknown): string {
+  const cause = error instanceof Error ? error.cause : undefined;
+  if (cause instanceof Error) {
+    const code = (cause as { code?: unknown }).code;
+    return typeof code === "string" ? `${code}: ${cause.message}` : cause.message;
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
 export interface TypeSafeProviderOptions {
   apiKey: string;
   baseUrl: string;
@@ -109,7 +122,9 @@ export class TypeSafeProvider implements JevProvider {
           cause: error,
         });
       }
-      throw new JevError("network", "Could not reach the TypeSafe API", { cause: error });
+      throw new JevError("network", `Could not reach the TypeSafe API (${describeFetchFailure(error)})`, {
+        cause: error,
+      });
     }
 
     if (!response.ok) throw await errorFromResponse(response);
