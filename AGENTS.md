@@ -730,6 +730,8 @@ Phase 7 (general-purpose image input) is complete when:
 - a request with images is rejected before it is sent when the model is not known to accept images; a text-only model must never receive an image,
 - image parts placed inside `state` are rejected so images only travel through `images`,
 - image support is verified against the live API with an image-capable model (`cloudflare/clef` or `cloudflare/clef-flash` on OpenRouter),
+- requests whose text input (`state` plus `questions`) exceeds `JEV_MAX_INPUT_CHARS` are rejected before sending, because some models accept and bill inputs beyond their documented context,
+- requests that break a model's documented request rules (for Clef: question IDs, 2 to 255 choice options, at most 64 questions) are rejected before sending with a message naming the problem,
 - `main` passes CI.
 
 Version bumps, tags and releases happen only when the project owner explicitly asks for them. Record unreleased changes under `## [Unreleased]` in `CHANGELOG.md` until then.
