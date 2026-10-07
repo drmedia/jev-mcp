@@ -41,6 +41,8 @@ npm run build
 | `JEV_IMAGE_DIRS` | no | unset: image `path` disabled. Absolute directories, separated by `;` on Windows and `:` elsewhere |
 | `JEV_MAX_INPUT_CHARS` | no | `256000` characters of `state` plus `questions` per request; `0` disables |
 | `JEV_MAX_CONCURRENCY` | no | `4` (1 to 16) provider requests at a time in `jev.evaluate_batch` |
+| `JEV_TIMEOUT_MS` | no | `30000` (1000 to 600000) milliseconds per provider request attempt |
+| `JEV_LOG_LEVEL` | no | `warn` (or `error`, `info`, `debug`); see [Logging](#logging) |
 
 ## Checks before sending
 
@@ -158,6 +160,24 @@ logged to stderr. After the last attempt, the original error is returned unchang
 
 `POST /v1/systemone` is retried too. If a timed-out request was actually processed,
 the retry is billed again.
+
+Each attempt waits at most `JEV_TIMEOUT_MS` (default 30 s) for the provider. Raise it
+for slow local servers or large images; a timeout counts as a transient failure and
+is retried.
+
+## Logging
+
+Logs go to stderr; stdout carries only MCP traffic. `JEV_LOG_LEVEL` picks how much:
+
+| Level | Adds |
+| --- | --- |
+| `error` | Unexpected server errors and startup failures |
+| `warn` (default) | Retries, and the provider's payload (up to 2,000 characters) when a response is invalid, so the cause can be diagnosed |
+| `info` | One startup line with the provider, model, timeout, retries and concurrency |
+| `debug` | One line per provider request: model, number of questions and images, duration, outcome, tokens and reported cost |
+
+Logs never contain API keys, Authorization headers or base URLs. `debug` lines do not
+include `state` or question text.
 
 ## Use with Claude Code
 

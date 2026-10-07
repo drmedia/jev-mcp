@@ -2,6 +2,7 @@ import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import type { z } from "zod";
 import type { JevCore } from "../core/jev-core.js";
 import type { JevRequestOptions } from "../core/provider.js";
+import type { Logger } from "../observability/logger.js";
 import {
   jevChoiceInputSchema,
   jevNoulInputSchema,
@@ -76,6 +77,7 @@ async function evaluateSingleQuestion(
 function registerSingleQuestionTool(
   server: McpServer,
   core: JevCore,
+  logger: Logger,
   tool: {
     name: string;
     title: string;
@@ -100,7 +102,7 @@ function registerSingleQuestionTool(
           await evaluateSingleQuestion(core, tool.type, input, { signal: extra.signal }),
         );
       } catch (error) {
-        return toolError(error, extra.signal);
+        return toolError(error, extra.signal, logger);
       }
     },
   );
@@ -127,7 +129,7 @@ Each item is a separate provider request and is billed separately. Every item is
 
 ${IMAGES_HELP.replace("judged together with `state`", "judged together with the item's `state`")}`;
 
-export function registerJevTools(server: McpServer, core: JevCore): void {
+export function registerJevTools(server: McpServer, core: JevCore, logger: Logger): void {
   server.registerTool(
     "jev.evaluate",
     {
@@ -141,7 +143,7 @@ export function registerJevTools(server: McpServer, core: JevCore): void {
       try {
         return toolSuccess({ ...(await core.evaluate(input, { signal: extra.signal })) });
       } catch (error) {
-        return toolError(error, extra.signal);
+        return toolError(error, extra.signal, logger);
       }
     },
   );
@@ -159,7 +161,7 @@ export function registerJevTools(server: McpServer, core: JevCore): void {
       try {
         return toolSuccess({ ...(await core.evaluateBatch(input, { signal: extra.signal })) });
       } catch (error) {
-        return toolError(error, extra.signal);
+        return toolError(error, extra.signal, logger);
       }
     },
   );
@@ -177,12 +179,12 @@ export function registerJevTools(server: McpServer, core: JevCore): void {
       try {
         return toolSuccess({ ...(await core.models({ signal: extra.signal })) });
       } catch (error) {
-        return toolError(error, extra.signal);
+        return toolError(error, extra.signal, logger);
       }
     },
   );
 
-  registerSingleQuestionTool(server, core, {
+  registerSingleQuestionTool(server, core, logger, {
     name: "jev.noul",
     title: "Yes/no question with Jev",
     type: "noul",
@@ -191,7 +193,7 @@ export function registerJevTools(server: McpServer, core: JevCore): void {
     outputSchema: jevNoulResultSchema,
   });
 
-  registerSingleQuestionTool(server, core, {
+  registerSingleQuestionTool(server, core, logger, {
     name: "jev.choice",
     title: "Choose an option with Jev",
     type: "choice",
@@ -200,7 +202,7 @@ export function registerJevTools(server: McpServer, core: JevCore): void {
     outputSchema: jevChoiceResultSchema,
   });
 
-  registerSingleQuestionTool(server, core, {
+  registerSingleQuestionTool(server, core, logger, {
     name: "jev.score",
     title: "Score on a scale with Jev",
     type: "score",

@@ -6,7 +6,7 @@ import { loadConfig } from "../config/config.js";
 import { JevCore } from "../core/jev-core.js";
 import { createDirectoryImageLoader } from "../images/directory-image-loader.js";
 import { createJevMcpServer } from "../mcp/server.js";
-import { logError, logWarning } from "../observability/logger.js";
+import { createLogger } from "../observability/logger.js";
 import { createProvider } from "../providers/create-provider.js";
 import { RetryingJevProvider } from "../providers/retrying-provider.js";
 
@@ -17,12 +17,13 @@ if (existsSync(envFile)) process.loadEnvFile(envFile);
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  const logger = createLogger(config.logLevel);
   const provider = new RetryingJevProvider(
-    createProvider(config.provider),
+    createProvider(config.provider, { timeoutMs: config.timeoutMs }),
     {
       policy: { maxRetries: config.jevMaxRetries },
       onRetry: ({ operation, retry, delayMs, error }) =>
-        logWarning(
+        logger.warn(
           `Retrying ${operation} (${retry}/${config.jevMaxRetries}) in ${delayMs} ms after ${error.kind}: ${error.message}`,
         ),
     },
@@ -36,13 +37,19 @@ async function main(): Promise<void> {
     defaultModel: config.jevModel,
     maxInputChars: config.maxInputChars,
     maxConcurrency: config.maxConcurrency,
+    logger,
     ...(loadImageFile !== undefined && { loadImageFile }),
   });
-  const server = createJevMcpServer(core);
+  const server = createJevMcpServer(core, { logger });
   await server.connect(new StdioServerTransport());
+  // Settings only; never keys or base URLs, which may carry credentials.
+  logger.info(
+    `Started: provider=${config.provider.name} model=${config.jevModel} timeout=${config.timeoutMs} ms retries=${config.jevMaxRetries} concurrency=${config.maxConcurrency} imageDirs=${config.imageDirectories.length}`,
+  );
 }
 
 main().catch((error: unknown) => {
-  logError("Failed to start the stdio server", error);
+  // The configured level is unknown when configuration itself failed.
+  createLogger().error("Failed to start the stdio server", error);
   process.exit(1);
 });

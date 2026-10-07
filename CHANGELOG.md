@@ -20,6 +20,20 @@ Phase 9 defined in AGENTS.md.
 - `JEV_MAX_CONCURRENCY` (default 4, 1 to 16): provider requests a batch runs at the
   same time.
 - MIT license (`LICENSE`); `package.json` now declares `MIT` instead of the npm default `ISC`.
+- `JEV_TIMEOUT_MS` (default 30000, 1000 to 600000): time limit for each provider
+  request attempt, previously fixed at 30 seconds.
+- `JEV_LOG_LEVEL` (`error`, `warn` default, `info`, `debug`): `info` adds a startup
+  line with the settings, `debug` adds one line per provider request with duration,
+  outcome and tokens. Neither includes keys, base URLs, state or question text.
+- When a provider response is invalid, its payload (up to 2,000 characters) is logged
+  to stderr at `warn`, so the cause can be diagnosed. The tool result still carries
+  only the error message.
+
+### Changed
+
+- Log lines include their level: `[jev-mcp] warn: ...` instead of `[jev-mcp] ...`.
+- `createJevMcpServer` takes an optional `{ logger }`; `createProvider` takes an
+  optional `{ timeoutMs }`; `JevCore` takes an optional `logger`.
 
 ## [0.3.0] - 2026-10-07
 
