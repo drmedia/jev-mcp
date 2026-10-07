@@ -125,7 +125,7 @@ Later phases may include:
 - usage and cost metadata (implemented: token usage, and cost when the provider reports it)
 - authentication (implemented for local HTTP: Phase 10, bearer token; OAuth is future)
 - Streamable HTTP transport (implemented locally: Phase 10, `src/transport/http.ts`; remote deployment is future)
-- Docker deployment
+- Docker deployment (implemented locally: Phase 11, `Dockerfile` and `compose.yaml`; registry publishing and cloud deployment are future)
 - calibration utilities
 - domain adapters
 
@@ -510,6 +510,7 @@ JEV_MAX_INPUT_CHARS
 JEV_TIMEOUT_MS
 JEV_LOG_LEVEL
 JEV_HTTP_TOKEN   (HTTP entry point only)
+JEV_HTTP_HOST    (HTTP entry point only; 0.0.0.0 only in containers)
 PORT             (HTTP entry point only)
 ```
 

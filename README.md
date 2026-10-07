@@ -45,6 +45,7 @@ npm run build
 | `JEV_LOG_LEVEL` | no | `warn` (or `error`, `info`, `debug`); see [Logging](#logging) |
 | `JEV_HTTP_TOKEN` | for `npm run start:http` | — (at least 32 characters; see [Streamable HTTP](#streamable-http)) |
 | `PORT` | no | `8098`, port of the Streamable HTTP server |
+| `JEV_HTTP_HOST` | no | `127.0.0.1`; `0.0.0.0` only inside a container (see [Docker](#docker)) |
 
 ## Checks before sending
 
@@ -157,6 +158,36 @@ rejects requests whose `Host` or `Origin` is not a loopback address, which block
 DNS rebinding. It is stateless: no sessions and no event stream. Remote access,
 TLS and OAuth are not supported. Client setup:
 [docs/clients.md](docs/clients.md#streamable-http-local).
+
+### Docker
+
+The same HTTP server also runs in Docker, which brings it back by itself after a
+restart:
+
+```bash
+docker compose up -d --build   # build and start in the background
+docker compose ps              # shows (healthy) once it answers
+docker compose logs            # server output
+docker compose down            # stop and remove the container
+```
+
+[compose.yaml](compose.yaml) reads `.env` at run time, so keys and `JEV_HTTP_TOKEN`
+never enter the image, and publishes the port on `127.0.0.1:8098` only. Clients
+connect exactly as to `npm run start:http`. The container runs as the unprivileged
+`node` user with a read-only filesystem and no capabilities, and checks its own
+health with an authenticated request. It restarts unless you stop it. To have it
+running after a reboot, enable **Start Docker Desktop when you sign in** in Docker
+Desktop's settings.
+
+Inside the container the server listens on `0.0.0.0` (`JEV_HTTP_HOST`), because
+Docker forwards the published port from outside the container. The `Host`, `Origin`
+and token checks still apply. Keep the published host port equal to `PORT`. Paths in
+`.env` such as `JEV_IMAGE_DIRS` refer to the host and are cleared in the container;
+mount a folder to use image paths (see the comment in `compose.yaml`). A local
+provider on the host is reachable as `http://host.docker.internal:8097` rather than
+`127.0.0.1`.
+
+Stop the non-Docker server first if it is running: both use port 8098.
 
 ## Retries
 

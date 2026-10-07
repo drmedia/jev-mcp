@@ -192,11 +192,19 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): JevConfig {
 }
 
 export const DEFAULT_HTTP_PORT = 8098;
+/**
+ * Addresses the HTTP server may listen on. `0.0.0.0` is for containers only, where the
+ * port is published on the host's loopback address; remote access is out of scope.
+ */
+export const HTTP_HOSTS = ["127.0.0.1", "0.0.0.0"] as const;
+export type HttpHost = (typeof HTTP_HOSTS)[number];
 /** A token shorter than this is rejected; generate one with crypto.randomBytes(32). */
 export const MIN_HTTP_TOKEN_LENGTH = 32;
 
 /** Settings that only the Streamable HTTP entry point needs. */
 export interface HttpConfig {
+  /** Listen address; `127.0.0.1` unless running in a container. */
+  host: HttpHost;
   port: number;
   /** Shared secret every request must send as `Authorization: Bearer <token>`. */
   token: string;
@@ -215,16 +223,24 @@ const httpEnvSchema = z.object({
       .transform((value) => value ?? DEFAULT_HTTP_PORT),
   ),
   JEV_HTTP_TOKEN: optionalString,
+  JEV_HTTP_HOST: optionalString.pipe(
+    z
+      .enum(HTTP_HOSTS, {
+        error: `JEV_HTTP_HOST must be one of: ${HTTP_HOSTS.join(", ")} (0.0.0.0 only inside a container)`,
+      })
+      .optional()
+      .transform((value) => value ?? "127.0.0.1"),
+  ),
 });
 
 /** Reads the HTTP entry point's settings. Messages name variables only, never values. */
 export function loadHttpConfig(env: NodeJS.ProcessEnv = process.env): HttpConfig {
   const parsed = httpEnvSchema.safeParse(env);
   if (!parsed.success) invalid(parsed.error.issues.map((issue) => issue.message).join("; "));
-  const { PORT: port, JEV_HTTP_TOKEN: token } = parsed.data;
+  const { PORT: port, JEV_HTTP_TOKEN: token, JEV_HTTP_HOST: host } = parsed.data;
   if (token === undefined) invalid("JEV_HTTP_TOKEN is required for the HTTP server");
   if (token.length < MIN_HTTP_TOKEN_LENGTH) {
     invalid(`JEV_HTTP_TOKEN must be at least ${MIN_HTTP_TOKEN_LENGTH} characters`);
   }
-  return { port, token };
+  return { host, port, token };
 }

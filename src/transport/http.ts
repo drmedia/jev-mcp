@@ -8,20 +8,22 @@ loadLocalEnvFile();
 
 async function main(): Promise<void> {
   const config = loadConfig();
-  const { port, token } = loadHttpConfig();
+  const { host, port, token } = loadHttpConfig();
   const logger = createLogger(config.logLevel);
   const core = await createJevCoreFromConfig(config, logger);
   const server = createJevHttpServer({ core, token, logger });
 
   await new Promise<void>((resolve, reject) => {
     server.once("error", reject);
-    server.listen(port, HTTP_BIND_ADDRESS, () => {
+    server.listen(port, host, () => {
       server.off("error", reject);
       resolve();
     });
   });
   // Always shown: an HTTP server that runs silently is hard to find. The token is never printed.
-  process.stderr.write(`[jev-mcp] Listening on http://${HTTP_BIND_ADDRESS}:${port}${MCP_PATH}\n`);
+  // With host 0.0.0.0 (containers), clients still connect through the host's loopback address.
+  const scope = host === HTTP_BIND_ADDRESS ? "" : " (all container interfaces)";
+  process.stderr.write(`[jev-mcp] Listening on http://${HTTP_BIND_ADDRESS}:${port}${MCP_PATH}${scope}\n`);
   logger.info(`Started: ${describeSettings(config)}`);
 
   const shutdown = () => {
