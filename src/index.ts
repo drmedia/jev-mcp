@@ -7,6 +7,19 @@ export {
 export { JevError, type JevErrorKind } from "./core/errors.js";
 export { JevCore, type JevCoreOptions } from "./core/jev-core.js";
 export type {
+  JevBatchItemFailure,
+  JevBatchItemResult,
+  JevBatchItemSkipped,
+  JevBatchItemSuccess,
+  JevBatchResult,
+} from "./core/batch.js";
+export {
+  jevEvaluateBatchInputSchema,
+  MAX_BATCH_ITEMS,
+  type JevBatchItem,
+  type JevEvaluateBatchInput,
+} from "./schemas/batch.js";
+export type {
   JevAnswer,
   JevChoiceAnswer,
   JevEvaluateRequest,

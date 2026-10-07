@@ -79,12 +79,14 @@ export const imagesSchema = z
   .min(1, "must contain at least one image when present")
   .max(MAX_IMAGES, `must contain at most ${MAX_IMAGES} images`);
 
+export const questionsSchema = z
+  .record(z.string().min(1, "question ids must not be empty"), jevQuestionSchema)
+  .refine((questions) => Object.keys(questions).length >= 1, "must contain at least one question");
+
 export const jevEvaluateInputSchema = z.strictObject({
   state: descriptionSchema,
   model: modelSchema.optional(),
-  questions: z
-    .record(z.string().min(1, "question ids must not be empty"), jevQuestionSchema)
-    .refine((questions) => Object.keys(questions).length >= 1, "must contain at least one question"),
+  questions: questionsSchema,
   images: imagesSchema.optional(),
 });
 

@@ -7,6 +7,19 @@ include breaking changes.
 
 ## [Unreleased]
 
+Phase 9 defined in AGENTS.md.
+
+### Added
+
+- `jev.evaluate_batch`: the same questions about up to 100 items in one tool call,
+  for general-purpose classification and ranking. One provider request per item,
+  since the System One APIs take one `state` per request; every item is checked
+  before anything is sent; per-item results in input order with `ok`, `error` or
+  `skipped`; usage totals over successful items, with a cost only when every
+  successful item reported one.
+- `JEV_MAX_CONCURRENCY` (default 4, 1 to 16): provider requests a batch runs at the
+  same time.
+
 ## [0.3.0] - 2026-10-07
 
 Completes Phases 7 and 8 defined in [AGENTS.md](AGENTS.md): general-purpose image

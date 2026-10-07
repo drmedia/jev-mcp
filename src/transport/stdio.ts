@@ -35,6 +35,7 @@ async function main(): Promise<void> {
     provider,
     defaultModel: config.jevModel,
     maxInputChars: config.maxInputChars,
+    maxConcurrency: config.maxConcurrency,
     ...(loadImageFile !== undefined && { loadImageFile }),
   });
   const server = createJevMcpServer(core);

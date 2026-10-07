@@ -11,6 +11,13 @@ import {
   type JevEvaluateInput,
   type JevImageSource,
 } from "../schemas/evaluate.js";
+import { jevEvaluateBatchInputSchema, type JevBatchItem } from "../schemas/batch.js";
+import {
+  BATCH_STOPPING_ERROR_KINDS,
+  totalBatchUsage,
+  type JevBatchItemResult,
+  type JevBatchResult,
+} from "./batch.js";
 import { JevError } from "./errors.js";
 import type {
   JevEvaluateRequest,
@@ -33,7 +40,11 @@ export interface JevCoreOptions {
    * requests are stopped before they are sent. Omitted or 0 disables the check.
    */
   maxInputChars?: number;
+  /** Maximum provider requests evaluateBatch runs at the same time. Defaults to 4. */
+  maxConcurrency?: number;
 }
+
+const DEFAULT_MAX_CONCURRENCY = 4;
 
 function formatIssues(issues: readonly z.core.$ZodIssue[]): string {
   return issues
@@ -109,12 +120,14 @@ export class JevCore {
   readonly #defaultModel: string;
   readonly #loadImageFile: ImageFileLoader | undefined;
   readonly #maxInputChars: number;
+  readonly #maxConcurrency: number;
 
   constructor(options: JevCoreOptions) {
     this.#provider = options.provider;
     this.#defaultModel = options.defaultModel;
     this.#loadImageFile = options.loadImageFile;
     this.#maxInputChars = options.maxInputChars ?? 0;
+    this.#maxConcurrency = Math.max(1, options.maxConcurrency ?? DEFAULT_MAX_CONCURRENCY);
   }
 
   models(options?: JevRequestOptions): Promise<JevModelList> {
@@ -129,9 +142,101 @@ export class JevCore {
         details: parsed.error.issues,
       });
     }
+    return this.#send(await this.#prepare(parsed.data), options);
+  }
 
+  /**
+   * Asks the same questions about each item, one provider request per item, with at
+   * most `maxConcurrency` requests at a time. Every item is validated before any
+   * request is sent. Each item gets its own answers or error; nothing is filled in.
+   */
+  async evaluateBatch(input: unknown, options?: JevRequestOptions): Promise<JevBatchResult> {
+    const parsed = jevEvaluateBatchInputSchema.safeParse(input);
+    if (!parsed.success) {
+      throw new JevError("invalid_input", `Invalid batch input: ${formatIssues(parsed.error.issues)}`, {
+        details: parsed.error.issues,
+      });
+    }
+    const { items, model, questions } = parsed.data;
+
+    const requests: JevEvaluateRequest[] = [];
+    for (const [index, item] of items.entries()) {
+      try {
+        requests.push(
+          await this.#prepare({
+            state: item.state,
+            questions,
+            ...(model !== undefined && { model }),
+            ...(item.images !== undefined && { images: item.images }),
+          }),
+        );
+      } catch (error) {
+        if (!(error instanceof JevError)) throw error;
+        throw new JevError(error.kind, `items[${index}]: ${error.message}`, { details: error.details });
+      }
+    }
+
+    const results = await this.#runBatch(items, requests, options);
+    const summary = { ok: 0, error: 0, skipped: 0 };
+    for (const result of results) summary[result.status] += 1;
+    return { results, summary, usage: totalBatchUsage(results) };
+  }
+
+  async #runBatch(
+    items: readonly JevBatchItem[],
+    requests: readonly JevEvaluateRequest[],
+    options: JevRequestOptions | undefined,
+  ): Promise<JevBatchItemResult[]> {
+    const results: JevBatchItemResult[] = new Array(requests.length);
+    // Cancels requests still in flight when the batch fails as a whole.
+    const failed = new AbortController();
+    const signal = options?.signal ? AbortSignal.any([options.signal, failed.signal]) : failed.signal;
+    let next = 0;
+    let stopReason: string | undefined;
+
+    const worker = async (): Promise<void> => {
+      while (next < requests.length && !failed.signal.aborted) {
+        const index = next++;
+        const request = requests[index]!;
+        const item = { index, ...(items[index]!.id !== undefined && { id: items[index]!.id }) };
+        if (stopReason !== undefined) {
+          results[index] = { ...item, status: "skipped", reason: stopReason };
+          continue;
+        }
+        try {
+          const { model, answers, usage } = await this.#send(request, { signal });
+          results[index] = { ...item, status: "ok", model, answers, usage };
+        } catch (error) {
+          if (!(error instanceof JevError)) {
+            // Cancellation or an unexpected failure: no partial batch result.
+            failed.abort(error);
+            throw error;
+          }
+          results[index] = {
+            ...item,
+            status: "error",
+            error: {
+              kind: error.kind,
+              message: error.message,
+              ...(error.status !== undefined && { status: error.status }),
+            },
+          };
+          if (BATCH_STOPPING_ERROR_KINDS.has(error.kind)) {
+            stopReason ??= `Not sent: items[${index}] failed with ${error.kind}, which every remaining item would also hit`;
+          }
+        }
+      }
+    };
+
+    const workers = Math.min(this.#maxConcurrency, requests.length);
+    await Promise.all(Array.from({ length: workers }, worker));
+    return results;
+  }
+
+  /** Checks everything that can be checked locally and builds the provider request. */
+  async #prepare(input: JevEvaluateInput): Promise<JevEvaluateRequest> {
     if (this.#maxInputChars > 0) {
-      const size = JSON.stringify({ state: parsed.data.state, questions: parsed.data.questions }).length;
+      const size = JSON.stringify({ state: input.state, questions: input.questions }).length;
       if (size > this.#maxInputChars) {
         throw new JevError(
           "invalid_input",
@@ -139,17 +244,19 @@ export class JevCore {
         );
       }
     }
-    if (containsImagePart(parsed.data.state)) {
+    if (containsImagePart(input.state)) {
       throw new JevError(
         "invalid_input",
         "Invalid evaluate input: state contains an image part; pass images in the images field instead",
       );
     }
-    const images = parsed.data.images ? await this.#resolveImages(parsed.data.images) : undefined;
+    const images = input.images ? await this.#resolveImages(input.images) : undefined;
+    return this.#toRequest(input, images);
+  }
 
-    const request = this.#toRequest(parsed.data, images);
+  /** Sends one request and rejects answers that do not match the questions asked. */
+  async #send(request: JevEvaluateRequest, options?: JevRequestOptions): Promise<JevEvaluateResult> {
     const result = await this.#provider.evaluate(request, options);
-
     const problems = findAnswerProblems(request, result);
     if (problems.length > 0) {
       throw new JevError(

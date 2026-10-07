@@ -9,6 +9,8 @@ export const DEFAULT_LOCAL_BASE_URL = "http://127.0.0.1:8097";
 export const DEFAULT_JEV_MODEL = "jev-latest";
 export const DEFAULT_JEV_MAX_RETRIES = 2;
 export const MAX_JEV_MAX_RETRIES = 10;
+export const DEFAULT_JEV_MAX_CONCURRENCY = 4;
+export const MAX_JEV_MAX_CONCURRENCY = 16;
 /**
  * About 64k tokens of English text at roughly 4 characters per token, the largest
  * documented context among supported models (Jev 64k, Clef 65,536). Text in scripts
@@ -35,6 +37,8 @@ export interface JevConfig {
   imageDirectories: string[];
   /** Maximum characters of text input (`state` plus `questions`) per request; 0 disables the check. */
   maxInputChars: number;
+  /** Maximum provider requests a batch runs at the same time. */
+  maxConcurrency: number;
 }
 
 // Empty strings (e.g. `TYPESAFE_BASE_URL=` copied from .env.example) count as unset.
@@ -52,7 +56,8 @@ function baseUrl(variable: string, fallback: string) {
     .transform((value) => (value ?? fallback).replace(/\/+$/, ""));
 }
 
-const maxRetriesMessage = `JEV_MAX_RETRIES must be a whole number from 0 to ${MAX_JEV_MAX_RETRIES}`;
+const maxConcurrencyMessage = `JEV_MAX_CONCURRENCY must be a whole number from 1 to ${MAX_JEV_MAX_CONCURRENCY}`;
+const maxRetriesMessage =`JEV_MAX_RETRIES must be a whole number from 0 to ${MAX_JEV_MAX_RETRIES}`;
 
 const envSchema = z.object({
   JEV_PROVIDER: optionalString.pipe(
@@ -96,6 +101,15 @@ const envSchema = z.object({
       .transform(Number)
       .optional()
       .transform((value) => value ?? DEFAULT_JEV_MAX_INPUT_CHARS),
+  ),
+  JEV_MAX_CONCURRENCY: optionalString.pipe(
+    z
+      .string()
+      .regex(/^\d+$/, maxConcurrencyMessage)
+      .transform(Number)
+      .pipe(z.number().min(1, maxConcurrencyMessage).max(MAX_JEV_MAX_CONCURRENCY, maxConcurrencyMessage))
+      .optional()
+      .transform((value) => value ?? DEFAULT_JEV_MAX_CONCURRENCY),
   ),
   JEV_MAX_RETRIES: optionalString.pipe(
     z
@@ -146,5 +160,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): JevConfig {
     jevMaxRetries: data.JEV_MAX_RETRIES,
     imageDirectories: data.JEV_IMAGE_DIRS,
     maxInputChars: data.JEV_MAX_INPUT_CHARS,
+    maxConcurrency: data.JEV_MAX_CONCURRENCY,
   };
 }
