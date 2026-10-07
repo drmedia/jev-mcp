@@ -712,6 +712,16 @@ Phase 5 (stabilization and first release, `v0.1.0`) is complete when:
 
 Phase 5 adds no new runtime features.
 
+Phase 6 (OpenRouter provider, `v0.2.0`) is complete when:
+
+- `JEV_PROVIDER` selects `typesafe` (default) or `openrouter`; unknown values and missing credentials are configuration errors, never silent fallbacks,
+- `OpenRouterProvider` implements the provider interface through OpenRouter's System One API and is verified against the live API with `cloudflare/clef`, `cloudflare/clef-flash` and `typesafe/jev-1.13`,
+- `jev.models` lists the decision models OpenRouter exposes,
+- a per-request cost is returned only when the provider reports one; costs are never computed or estimated locally,
+- provider-specific behavior is pinned by contract tests and documented,
+- JEV Core logic and the MCP tool definitions are unchanged apart from the optional cost field and a `payment_required` error kind for HTTP 402,
+- `main` passes CI, and the `v0.2.0` tag and GitHub release exist.
+
 ---
 
 ## 26. Out of Scope for Initial MVP
