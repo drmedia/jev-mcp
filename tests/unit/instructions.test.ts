@@ -9,31 +9,47 @@ import { MockJevProvider } from "../support/mock-provider.js";
 const all = { providerNames: ["typesafe", "openrouter", "local"], defaultProviderName: "typesafe" };
 
 describe("buildServerInstructions", () => {
-  it("covers tool choice, question writing, results, providers, images and errors", () => {
+  it("covers tool choice, ambiguous results, errors and providers", () => {
     const text = buildServerInstructions(all);
 
     for (const tool of ["jev.noul", "jev.choice", "jev.score", "jev.evaluate", "jev.evaluate_batch", "jev.models"]) {
       expect(text).toContain(tool);
     }
-    expect(text).toContain("Near 0.5 means the question is ambiguous");
-    expect(text).toContain("Providers: typesafe, openrouter, local (default typesafe).");
-    expect(text).toContain("never inside `state`");
-    for (const kind of ["invalid_input", "payment_required", "rate_limited", "refused", "invalid_response"]) {
+    expect(text).toContain("A result near 0.5 means the question is ambiguous");
+    expect(text).toContain("Never substitute a guessed probability.");
+    for (const kind of [
+      "invalid_input",
+      "invalid_request",
+      "authentication",
+      "authorization",
+      "payment_required",
+      "configuration",
+      "rate_limited",
+      "overloaded",
+      "timeout",
+      "network",
+      "refused",
+      "invalid_response",
+      "provider_error",
+    ]) {
       expect(text).toContain(kind);
     }
+    expect(text).toContain(
+      "Providers: typesafe, openrouter, local (default typesafe); pass `provider` and `model` to switch or compare; openrouter needs `model`; local works only while the user's local server runs.",
+    );
   });
 
   it("names only the providers this server offers", () => {
-    const text = buildServerInstructions({ providerNames: ["openrouter"], defaultProviderName: "openrouter" });
-
-    expect(text).toContain('Provider: only "openrouter" here; omit `provider`.');
-    expect(text).toContain("openrouter: model required");
-    expect(text).not.toContain("- typesafe:");
-    expect(text).not.toContain("- local:");
+    expect(buildServerInstructions({ providerNames: ["openrouter"], defaultProviderName: "openrouter" })).toContain(
+      'Provider: only "openrouter"; omit `provider`.',
+    );
+    const two = buildServerInstructions({ providerNames: ["typesafe", "local"], defaultProviderName: "typesafe" });
+    expect(two).toContain("Providers: typesafe, local (default typesafe)");
+    expect(two).not.toContain("openrouter");
   });
 
-  it("fits within the 2048 characters Claude Code keeps, with every provider listed", () => {
-    expect(buildServerInstructions(all).length).toBeLessThanOrEqual(MAX_INSTRUCTIONS_LENGTH);
+  it("stays short: about half of the 2048 characters Claude Code keeps", () => {
+    expect(buildServerInstructions(all).length).toBeLessThanOrEqual(MAX_INSTRUCTIONS_LENGTH / 2 + 100);
   });
 
   it("is free of URLs, paths and secrets", () => {
@@ -69,6 +85,5 @@ describe("MCP initialize", () => {
     const instructions = client.getInstructions();
 
     expect(instructions).toBe(buildServerInstructions({ providerNames: ["typesafe", "local"], defaultProviderName: "typesafe" }));
-    expect(instructions).toContain("Providers: typesafe, local (default typesafe).");
   });
 });

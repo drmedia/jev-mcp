@@ -12,10 +12,13 @@ as Clef) as MCP tools. A request carries some content (`state`) and typed questi
 the answer is a calibrated probability per question. The server never writes text,
 never fills in a missing answer and never turns an error into a probability.
 
-The server also sends MCP `instructions` when a client connects: a short usage
-guide for the calling AI, built from the server's configuration
-([src/mcp/instructions.ts](../src/mcp/instructions.ts)). Claude Code keeps the first
-2048 characters of a server's instructions, so they stay below that.
+The server also sends MCP `instructions` when a client connects: a short guide for
+the calling AI (tool choice, errors, ambiguous results, available providers), built
+from the server's configuration ([src/mcp/instructions.ts](../src/mcp/instructions.ts)).
+Clients such as Claude Code keep them in context in every session, so they stay
+around 1,000 characters; question writing, result fields and image rules are in the
+tool descriptions instead. Claude Code keeps only the first 2048 characters of a
+server's instructions.
 
 ## Connecting
 
