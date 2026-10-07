@@ -66,18 +66,28 @@ describe.skipIf(!hasOpenRouterKey)("OpenRouter System One contract", () => {
     expect((error as JevError).message).toContain("typesafe/clef-flash does not exist");
   });
 
-  it("rejects more than 64 questions for Clef as invalid_request", async () => {
+  it("Clef rejects more than 64 questions with 422; the provider stops them before sending", async () => {
     const questions = Object.fromEntries(
       Array.from({ length: 65 }, (_, i) => [`q${i}`, { type: "noul" as const, instructions: `Is ${i} even?` }]),
     );
 
+    const response = await fetch("https://openrouter.ai/api/v1/systemone", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY?.trim()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "cloudflare/clef-flash", state: "x", questions }),
+    });
+    await response.text();
+    expect(response.status).toBe(422);
+
     const error = await openRouterProviderFromEnv()
       .evaluate({ state: "x", model: "cloudflare/clef-flash", questions })
       .catch((e: unknown) => e);
-
     expect(error).toBeInstanceOf(JevError);
-    expect((error as JevError).kind).toBe("invalid_request");
-    expect((error as JevError).status).toBe(422);
+    expect((error as JevError).kind).toBe("invalid_input");
+    expect((error as JevError).message).toContain("at most 64 questions per request, got 65");
   });
 
   it("lists decision models including Clef and Jev", async () => {
@@ -200,5 +210,51 @@ describe.skipIf(!hasOpenRouterKey)("OpenRouter System One contract: images", () 
 
     expect(response.status).toBe(400);
     expect(body.error?.message).toContain("Put each image in the `state` array");
+  });
+});
+
+// Clef's documented request rules, which Jev does not have. The raw calls bypass the
+// local check to pin the API's own behavior (rejected requests were not billed when
+// measured on 2026-10-07); the provider calls show the local check stops them first.
+describe.skipIf(!hasOpenRouterKey)("OpenRouter System One contract: Clef request rules", () => {
+  async function rawStatus(questions: Record<string, unknown>): Promise<number> {
+    const response = await fetch("https://openrouter.ai/api/v1/systemone", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY?.trim()}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ model: "cloudflare/clef-flash", state: "Help! Payouts failing.", questions }),
+    });
+    await response.text();
+    return response.status;
+  }
+
+  it("Clef rejects non-ASCII question IDs with 422; the provider stops them before sending", async () => {
+    expect(await rawStatus({ "긴급도": { type: "noul", instructions: "Is this urgent?" } })).toBe(422);
+
+    const error = await openRouterProviderFromEnv()
+      .evaluate({
+        state: "x",
+        model: "cloudflare/clef-flash",
+        questions: { "긴급도": { type: "noul", instructions: "Is this urgent?" } },
+      })
+      .catch((e: unknown) => e);
+    expect((error as JevError).kind).toBe("invalid_input");
+  });
+
+  it("Clef rejects a single-option choice with 422", async () => {
+    expect(
+      await rawStatus({ team: { type: "choice", instructions: "Which team?", criteria: { billing: null } } }),
+    ).toBe(422);
+  });
+
+  it("Jev on OpenRouter accepts the same non-ASCII question IDs", async () => {
+    const result = await openRouterProviderFromEnv().evaluate({
+      state: "Help! Payouts failing.",
+      model: "typesafe/jev-1.13",
+      questions: { "긴급도": { type: "noul", instructions: "Is this urgent?" } },
+    });
+    expect(result.answers["긴급도"]?.type).toBe("noul");
   });
 });

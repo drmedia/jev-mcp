@@ -7,6 +7,12 @@ export const DEFAULT_OPENROUTER_BASE_URL = "https://openrouter.ai/api";
 export const DEFAULT_JEV_MODEL = "jev-latest";
 export const DEFAULT_JEV_MAX_RETRIES = 2;
 export const MAX_JEV_MAX_RETRIES = 10;
+/**
+ * About 64k tokens of English text at roughly 4 characters per token, the largest
+ * documented context among supported models (Jev 64k, Clef 65,536). Text in scripts
+ * such as Korean uses more tokens per character, so the same limit allows more tokens.
+ */
+export const DEFAULT_JEV_MAX_INPUT_CHARS = 256_000;
 export const PROVIDER_NAMES = ["typesafe", "openrouter"] as const;
 
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
@@ -23,6 +29,8 @@ export interface JevConfig {
   jevMaxRetries: number;
   /** Absolute directories `images[].path` may read from; empty disables image paths. */
   imageDirectories: string[];
+  /** Maximum characters of text input (`state` plus `questions`) per request; 0 disables the check. */
+  maxInputChars: number;
 }
 
 // Empty strings (e.g. `TYPESAFE_BASE_URL=` copied from .env.example) count as unset.
@@ -72,6 +80,14 @@ const envSchema = z.object({
       (entries) => entries.every((entry) => isAbsolute(entry)),
       `JEV_IMAGE_DIRS entries must be absolute paths separated by "${delimiter}"`,
     ),
+  JEV_MAX_INPUT_CHARS: optionalString.pipe(
+    z
+      .string()
+      .regex(/^\d+$/, "JEV_MAX_INPUT_CHARS must be a whole number (0 disables the limit)")
+      .transform(Number)
+      .optional()
+      .transform((value) => value ?? DEFAULT_JEV_MAX_INPUT_CHARS),
+  ),
   JEV_MAX_RETRIES: optionalString.pipe(
     z
       .string()
@@ -117,5 +133,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): JevConfig {
     jevModel: data.JEV_MODEL,
     jevMaxRetries: data.JEV_MAX_RETRIES,
     imageDirectories: data.JEV_IMAGE_DIRS,
+    maxInputChars: data.JEV_MAX_INPUT_CHARS,
   };
 }

@@ -8,6 +8,7 @@ import type {
 } from "../../core/provider.js";
 import { JsonHttpClient } from "../http/json-client.js";
 import { parseSystemOneResponse, toSystemOnePayload } from "../systemone/wire.js";
+import { assertClefRequestRules, isClefModel } from "./clef-rules.js";
 import { parseOpenRouterErrorBody } from "./error-body.js";
 import { openRouterModelListSchema, type OpenRouterModel } from "./schemas.js";
 
@@ -88,6 +89,7 @@ export class OpenRouterProvider implements JevProvider {
     request: JevEvaluateRequest,
     options: JevRequestOptions = {},
   ): Promise<JevEvaluateResult> {
+    if (isClefModel(request.model)) assertClefRequestRules(request);
     const payload = toSystemOnePayload(request);
     if (request.images !== undefined) {
       assertWithinOpenRouterImageBudget(request);

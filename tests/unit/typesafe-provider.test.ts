@@ -354,3 +354,17 @@ describe("TypeSafeProvider.evaluate with images", () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe("TypeSafe error bodies with only an error type", () => {
+  it("uses the error type as the message, e.g. max_tokens_exceeded", async () => {
+    const fetchMock = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(jsonResponse({ detail: { error_type: "max_tokens_exceeded" } }, { status: 400 }));
+
+    const error = await captureError(providerWith(fetchMock).models());
+
+    expect(error.kind).toBe("invalid_request");
+    expect(error.providerCode).toBe("max_tokens_exceeded");
+    expect(error.message).toBe("TypeSafe API returned HTTP 400: max_tokens_exceeded");
+  });
+});

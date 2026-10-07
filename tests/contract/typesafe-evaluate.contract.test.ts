@@ -56,3 +56,19 @@ describe("TypeSafe /v1/systemone contract", () => {
     expect(result.usage.outputTokens).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe("TypeSafe /v1/systemone contract: long input", () => {
+  // About 40k tokens of state: above the documented 32k for state plus the longest
+  // question. TypeSafe rejects it (not billed) with only an error type in the body.
+  it.skipIf(!hasApiKey)("rejects an oversized state with max_tokens_exceeded in the message", async () => {
+    const state = Array.from({ length: 2700 }, (_, i) => `Log line ${i}: routine status check passed.`).join("\n");
+
+    const error = await typesafeProviderFromEnv()
+      .evaluate({ state, model: "jev-latest", questions: { q: { type: "noul", instructions: "Is this a log?" } } })
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(JevError);
+    expect((error as JevError).kind).toBe("invalid_request");
+    expect((error as JevError).message).toBe("TypeSafe API returned HTTP 400: max_tokens_exceeded");
+  });
+});

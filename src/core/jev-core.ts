@@ -27,6 +27,12 @@ export interface JevCoreOptions {
   defaultModel: string;
   /** Reads `images[].path` entries. Without it, image paths are rejected. */
   loadImageFile?: ImageFileLoader;
+  /**
+   * Maximum characters of text input (`state` and `questions` as JSON) per request.
+   * Some models accept and bill inputs beyond their documented context, so oversized
+   * requests are stopped before they are sent. Omitted or 0 disables the check.
+   */
+  maxInputChars?: number;
 }
 
 function formatIssues(issues: readonly z.core.$ZodIssue[]): string {
@@ -102,11 +108,13 @@ export class JevCore {
   readonly #provider: JevProvider;
   readonly #defaultModel: string;
   readonly #loadImageFile: ImageFileLoader | undefined;
+  readonly #maxInputChars: number;
 
   constructor(options: JevCoreOptions) {
     this.#provider = options.provider;
     this.#defaultModel = options.defaultModel;
     this.#loadImageFile = options.loadImageFile;
+    this.#maxInputChars = options.maxInputChars ?? 0;
   }
 
   models(options?: JevRequestOptions): Promise<JevModelList> {
@@ -122,6 +130,15 @@ export class JevCore {
       });
     }
 
+    if (this.#maxInputChars > 0) {
+      const size = JSON.stringify({ state: parsed.data.state, questions: parsed.data.questions }).length;
+      if (size > this.#maxInputChars) {
+        throw new JevError(
+          "invalid_input",
+          `Invalid evaluate input: text input is ${size} characters; the limit is ${this.#maxInputChars} (JEV_MAX_INPUT_CHARS). Shorten state or raise the limit.`,
+        );
+      }
+    }
     if (containsImagePart(parsed.data.state)) {
       throw new JevError(
         "invalid_input",

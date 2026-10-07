@@ -1,6 +1,7 @@
 import { delimiter, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_JEV_MAX_INPUT_CHARS,
   DEFAULT_JEV_MAX_RETRIES,
   DEFAULT_JEV_MODEL,
   DEFAULT_OPENROUTER_BASE_URL,
@@ -27,6 +28,21 @@ describe("loadConfig", () => {
       jevModel: DEFAULT_JEV_MODEL,
       jevMaxRetries: DEFAULT_JEV_MAX_RETRIES,
       imageDirectories: [],
+      maxInputChars: DEFAULT_JEV_MAX_INPUT_CHARS,
+    });
+  });
+
+  describe("JEV_MAX_INPUT_CHARS", () => {
+    it("defaults to 256,000 characters and accepts 0 to disable", () => {
+      expect(DEFAULT_JEV_MAX_INPUT_CHARS).toBe(256_000);
+      expect(loadConfig({ TYPESAFE_API_KEY: "k", JEV_MAX_INPUT_CHARS: "100000" }).maxInputChars).toBe(100_000);
+      expect(loadConfig({ TYPESAFE_API_KEY: "k", JEV_MAX_INPUT_CHARS: "0" }).maxInputChars).toBe(0);
+    });
+
+    it.each(["-1", "1e6", "lots"])("rejects %j", (value) => {
+      expect(configError({ TYPESAFE_API_KEY: "k", JEV_MAX_INPUT_CHARS: value }).message).toMatch(
+        /JEV_MAX_INPUT_CHARS must be a whole number/,
+      );
     });
   });
 

@@ -34,6 +34,7 @@ async function main(): Promise<void> {
   const core = new JevCore({
     provider,
     defaultModel: config.jevModel,
+    maxInputChars: config.maxInputChars,
     ...(loadImageFile !== undefined && { loadImageFile }),
   });
   const server = createJevMcpServer(core);

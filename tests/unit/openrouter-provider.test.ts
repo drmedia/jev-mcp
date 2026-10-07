@@ -323,3 +323,51 @@ describe("OpenRouterProvider.evaluate with images", () => {
     expect(fetchMock).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("OpenRouterProvider model rules", () => {
+  it("checks Clef's rules before sending anything", async () => {
+    const fetchMock = vi.fn<typeof fetch>();
+
+    const error = await captureError(
+      providerWith(fetchMock).evaluate({ ...request, questions: { "긴급도": request.questions.is_urgent } }),
+    );
+
+    expect(error.kind).toBe("invalid_input");
+    expect(error.message).toContain('"긴급도"');
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("does not apply Clef's rules to other models", async () => {
+    const fetchMock = vi.fn<typeof fetch>().mockResolvedValue(
+      jsonResponse({ ...wireResponse, model: "typesafe/jev-1.13", answers: { "긴급도": { type: "noul", noul: 0.9 } } }),
+    );
+
+    await providerWith(fetchMock).evaluate({
+      ...request,
+      model: "typesafe/jev-1.13",
+      questions: { "긴급도": request.questions.is_urgent },
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("parseOpenRouterErrorBody with relayed upstream errors", () => {
+  it("extracts TypeSafe's error type relayed by OpenRouter", () => {
+    const body = { error: { message: 'HTTP 400: {"detail":{"error_type":"max_tokens_exceeded"}}', code: 400 } };
+    expect(parseOpenRouterErrorBody(JSON.stringify(body)).message).toBe("max_tokens_exceeded");
+  });
+
+  it("extracts Cloudflare's error messages relayed by OpenRouter", () => {
+    const body = {
+      error: {
+        message:
+          'HTTP 413: {"errors":[{"message":"AiError: Ai: The estimated number of input and maximum output tokens (208406) exceeded this model context window limit (65536).","code":5021}],"success":false,"result":{},"messages":[]}',
+        code: 413,
+      },
+    };
+    expect(parseOpenRouterErrorBody(JSON.stringify(body)).message).toBe(
+      "AiError: Ai: The estimated number of input and maximum output tokens (208406) exceeded this model context window limit (65536).",
+    );
+  });
+});

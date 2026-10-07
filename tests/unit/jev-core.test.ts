@@ -227,3 +227,43 @@ describe("JevCore.evaluate with images", () => {
     expect(provider.evaluateCalls).toHaveLength(0);
   });
 });
+
+describe("JevCore.evaluate input size limit", () => {
+  const result: JevEvaluateResult = {
+    model: "m",
+    answers: { q: { type: "noul", noul: 0.5 } },
+    usage: { inputTokens: 1, outputTokens: 1 },
+  };
+  const questions = { q: { type: "noul", instructions: "Is it ok?" } };
+  const sizeOf = (state: string) => JSON.stringify({ state, questions }).length;
+
+  it("rejects text input above maxInputChars before calling the provider", async () => {
+    const provider = new MockJevProvider({ evaluate: () => result });
+    const state = "x".repeat(1000);
+    const core = new JevCore({ provider, defaultModel: "m", maxInputChars: sizeOf(state) - 1 });
+
+    const error = await captureError(core.evaluate({ state, questions }));
+
+    expect(error.kind).toBe("invalid_input");
+    expect(error.message).toMatch(/text input is \d+ characters; the limit is \d+ \(JEV_MAX_INPUT_CHARS\)/);
+    expect(provider.evaluateCalls).toHaveLength(0);
+  });
+
+  it("accepts input exactly at the limit", async () => {
+    const provider = new MockJevProvider({ evaluate: () => result });
+    const state = "x".repeat(1000);
+    const core = new JevCore({ provider, defaultModel: "m", maxInputChars: sizeOf(state) });
+
+    await expect(core.evaluate({ state, questions })).resolves.toEqual(result);
+  });
+
+  it("does not limit input when maxInputChars is 0 or omitted", async () => {
+    const provider = new MockJevProvider({ evaluate: () => result });
+    const state = "x".repeat(300_000);
+
+    await new JevCore({ provider, defaultModel: "m", maxInputChars: 0 }).evaluate({ state, questions });
+    await new JevCore({ provider, defaultModel: "m" }).evaluate({ state, questions });
+
+    expect(provider.evaluateCalls).toHaveLength(2);
+  });
+});
