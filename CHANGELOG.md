@@ -7,7 +7,25 @@ include breaking changes.
 
 ## [Unreleased]
 
-Phase 7 defined in [AGENTS.md](AGENTS.md).
+Phases 7 and 8 defined in [AGENTS.md](AGENTS.md).
+
+### Added (Phase 8)
+
+- `JEV_PROVIDER=local` with `LocalProvider`: a System One-compatible server on your
+  own machine or network (`JEV_LOCAL_BASE_URL`, default `http://127.0.0.1:8097`;
+  optional `JEV_LOCAL_API_KEY`). Verified with llama.cpp `llama-server` serving Clef
+  Flash (Q4_K_M) on an RTX 4070 Ti, text and images.
+- Images go to local models the server lists with an `image` input, in the server's
+  `images` field; WebP is rejected before sending for llama-server, which cannot load it.
+- docs/local-provider.md: llama.cpp and Clef Flash setup with SHA-256 checksums, the
+  required `--ubatch-size`, and measured local vs cloud results.
+- Local contract and e2e tests run only when a local server is reachable.
+
+### Changed (Phase 8)
+
+- `jev.models` entries have optional `description` and `releaseDate`, omitted when
+  a provider does not report them instead of being invented.
+- The HTTP client sends no Authorization header when no key is configured.
 
 ### Added
 
