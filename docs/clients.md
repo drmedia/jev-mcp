@@ -109,6 +109,10 @@ npm run build
 npm run start:http
 ```
 
+To run it in Docker instead, so it restarts by itself, use `docker compose up -d
+--build` (see [README: Docker](../README.md#docker)); clients connect the same way.
+The scripts below report port 8098 as taken while the container runs.
+
 On Windows, double-click `scripts\start-http-server.cmd` instead: it builds once if
 needed and runs the server in its own window, and refuses to start a second copy.
 `scripts\stop-http-server.cmd` stops a server on port 8098, and only if it is a

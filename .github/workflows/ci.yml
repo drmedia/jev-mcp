@@ -34,3 +34,12 @@ jobs:
       # call the real API and are run manually (see README).
       - run: npm test
       - run: npm run build
+
+  docker:
+    name: Docker image
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      # Builds the image only; nothing is pushed and no secrets are used.
+      - run: docker build --tag jev-mcp:ci .

@@ -7,7 +7,7 @@ include breaking changes.
 
 ## [Unreleased]
 
-Phase 10 defined in AGENTS.md.
+Phases 10 and 11 defined in AGENTS.md.
 
 ### Added
 
@@ -27,6 +27,14 @@ Phase 10 defined in AGENTS.md.
   window, building first if needed, and refuses a second copy) and
   `scripts\stop-http-server.cmd` (stops it, only if port 8098 belongs to `node`).
   `.gitattributes` keeps `*.cmd` files in CRLF.
+- Docker (Phase 11): a multi-stage `Dockerfile` on a pinned `node:22.21-alpine` image
+  (tag and digest), production dependencies only, running as the `node` user, with a
+  health check (`dist/transport/http-healthcheck.js`) that sends an authenticated MCP
+  request. `compose.yaml` reads `.env` at run time, publishes `127.0.0.1:8098` only,
+  restarts unless stopped, and runs read-only without capabilities. `.dockerignore`
+  keeps `.env` and other local files out of the build context. CI builds the image.
+- `JEV_HTTP_HOST` (`127.0.0.1` default, or `0.0.0.0` inside a container); the Host,
+  Origin and token checks apply either way.
 
 ### Changed
 

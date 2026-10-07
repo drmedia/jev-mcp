@@ -264,9 +264,9 @@ describe("loadHttpConfig", () => {
   const token = "a".repeat(MIN_HTTP_TOKEN_LENGTH);
 
   it("defaults to port 8098 and requires a token", () => {
-    expect(loadHttpConfig({ JEV_HTTP_TOKEN: token })).toEqual({ port: DEFAULT_HTTP_PORT, token });
+    expect(loadHttpConfig({ JEV_HTTP_TOKEN: token })).toEqual({ host: "127.0.0.1", port: DEFAULT_HTTP_PORT, token });
     expect(DEFAULT_HTTP_PORT).toBe(8098);
-    expect(loadHttpConfig({ JEV_HTTP_TOKEN: ` ${token} `, PORT: "9000" })).toEqual({ port: 9000, token });
+    expect(loadHttpConfig({ JEV_HTTP_TOKEN: ` ${token} `, PORT: "9000" })).toEqual({ host: "127.0.0.1", port: 9000, token });
   });
 
   it.each([{}, { JEV_HTTP_TOKEN: "" }, { JEV_HTTP_TOKEN: "   " }])("rejects a missing token (%o)", (env) => {
@@ -283,6 +283,17 @@ describe("loadHttpConfig", () => {
     }
     expect(message).toMatch(/JEV_HTTP_TOKEN must be at least 32 characters/);
     expect(message).not.toContain("short-secret");
+  });
+
+  it("listens on all interfaces only when JEV_HTTP_HOST is 0.0.0.0 (containers)", () => {
+    expect(loadHttpConfig({ JEV_HTTP_TOKEN: token, JEV_HTTP_HOST: "0.0.0.0" }).host).toBe("0.0.0.0");
+    expect(loadHttpConfig({ JEV_HTTP_TOKEN: token, JEV_HTTP_HOST: " " }).host).toBe("127.0.0.1");
+  });
+
+  it.each(["192.168.0.10", "localhost", "::", "example.com"])("rejects JEV_HTTP_HOST %j", (host) => {
+    expect(() => loadHttpConfig({ JEV_HTTP_TOKEN: token, JEV_HTTP_HOST: host })).toThrow(
+      /JEV_HTTP_HOST must be one of: 127.0.0.1, 0.0.0.0/,
+    );
   });
 
   it.each(["0", "65536", "http", "80.5"])("rejects PORT %j", (port) => {

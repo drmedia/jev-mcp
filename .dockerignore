@@ -1,0 +1,19 @@
+# Secrets never enter the build context.
+.env
+.env.*
+!.env.example
+
+# Rebuilt inside the image.
+node_modules
+dist
+coverage
+
+# Not needed at run time.
+.git
+.github
+.claude
+.vscode
+tests
+docs
+scripts
+*.md

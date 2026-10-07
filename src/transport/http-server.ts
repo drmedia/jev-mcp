@@ -9,7 +9,7 @@ import type { Logger } from "../observability/logger.js";
 /** The single MCP endpoint path. */
 export const MCP_PATH = "/mcp";
 
-/** The only address the server listens on; remote access is out of scope (AGENTS.md Phase 10). */
+/** The default listen address. `0.0.0.0` is allowed only inside a container (AGENTS.md Phase 11). */
 export const HTTP_BIND_ADDRESS = "127.0.0.1";
 
 /**
